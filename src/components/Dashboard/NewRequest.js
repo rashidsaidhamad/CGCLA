@@ -343,27 +343,7 @@ const NewRequest = ({ user }) => {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Request Tips */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">💡 Request Tips</h3>
-            <div className="space-y-3">
-              <div className="flex items-start">
-                <span className="text-blue-500 mr-2">ℹ️</span>
-                <span className="text-sm text-gray-600">Check item availability before requesting</span>
-              </div>
-              <div className="flex items-start">
-                <span className="text-green-500 mr-2">✅</span>
-                <span className="text-sm text-gray-600">Provide clear justification for faster approval</span>
-              </div>
-              <div className="flex items-start">
-                <span className="text-yellow-500 mr-2">⚠️</span>
-                <span className="text-sm text-gray-600">High urgency requests require manager approval</span>
-              </div>
-              <div className="flex items-start">
-                <span className="text-purple-500 mr-2">🕒</span>
-                <span className="text-sm text-gray-600">Normal processing time: 2-3 business days</span>
-              </div>
-            </div>
-          </div>
+  
 
           {/* Department Info */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -389,23 +369,7 @@ const NewRequest = ({ user }) => {
           </div>
 
           {/* Quick Access */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Access</h3>
-            <div className="space-y-2">
-              <button className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded">
-                📋 View My Requests
-              </button>
-              <button className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded">
-                📦 Browse Available Items
-              </button>
-              <button className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded">
-                📊 Request Templates
-              </button>
-              <button className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded">
-                📞 Contact Warehouse
-              </button>
-            </div>
-          </div>
+     
         </div>
       </div>
     </div>

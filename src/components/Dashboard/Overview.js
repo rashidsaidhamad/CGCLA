@@ -166,32 +166,7 @@ const Overview = () => {
       </div>
 
       {/* System Status */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">System Status</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-green-800">Database</p>
-              <p className="text-xs text-green-600">Operational</p>
-            </div>
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-green-800">API Server</p>
-              <p className="text-xs text-green-600">Online</p>
-            </div>
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-yellow-800">Backup System</p>
-              <p className="text-xs text-yellow-600">Scheduled</p>
-            </div>
-            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-          </div>
-        </div>
-      </div>
+  
     </div>
   );
 };

@@ -217,23 +217,7 @@ const DepartmentOverview = ({ user }) => {
       {/* Department Info & Guidelines */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Department Performance */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Performance</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Success Rate</span>
-              <span className="text-sm font-semibold text-green-600">{stats.quickStats.successRate}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Avg Response Time</span>
-              <span className="text-sm font-semibold text-blue-600">{stats.quickStats.avgResponseTime}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Requests This Month</span>
-              <span className="text-sm font-semibold text-purple-600">{stats.quickStats.thisMonth}</span>
-            </div>
-          </div>
-        </div>
+
 
         {/* Request Guidelines */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -259,32 +243,7 @@ const DepartmentOverview = ({ user }) => {
         </div>
 
         {/* System Status */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">System Status</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Request System</span>
-              <div className="flex items-center">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                <span className="text-sm text-green-600">Online</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Warehouse</span>
-              <div className="flex items-center">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                <span className="text-sm text-green-600">Available</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Approval System</span>
-              <div className="flex items-center">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
-                <span className="text-sm text-yellow-600">Busy</span>
-              </div>
-            </div>
-          </div>
-        </div>
+    
       </div>
     </div>
   );
