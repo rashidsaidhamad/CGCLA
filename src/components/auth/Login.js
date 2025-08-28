@@ -58,10 +58,7 @@ const Login = ({ onLogin }) => {
       
       // Mock authentication with username/password combinations
       const validCredentials = [
-        { username: 'admin', password: 'admin123', role: 'warehouse_manager' },
-        { username: 'warehouse', password: 'warehouse123', role: 'warehouse_manager' },
-        { username: 'requester', password: 'requester123', role: 'requester' },
-        { username: 'user', password: 'user123', role: 'requester' }
+        
       ];
 
       const user = validCredentials.find(
@@ -128,26 +125,7 @@ const Login = ({ onLogin }) => {
                     </p>
 
                     {/* Feature Icons */}
-                    <div className="mt-8 grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <div className="bg-white bg-opacity-20 rounded-full p-3 mx-auto w-12 h-12 flex items-center justify-center mb-2">
-                          �
-                        </div>
-                        <span className="text-sm">Laboratory</span>
-                      </div>
-                      <div className="text-center">
-                        <div className="bg-white bg-opacity-20 rounded-full p-3 mx-auto w-12 h-12 flex items-center justify-center mb-2">
-                          �
-                        </div>
-                        <span className="text-sm">Inventory</span>
-                      </div>
-                      <div className="text-center">
-                        <div className="bg-white bg-opacity-20 rounded-full p-3 mx-auto w-12 h-12 flex items-center justify-center mb-2">
-                          📊
-                        </div>
-                        <span className="text-sm">Analytics</span>
-                      </div>
-                    </div>
+            
                   </div>
                 </div>
               </div>
