@@ -2,85 +2,62 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/auth/Login';
 import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
+import DepartmentDashboard from './components/Dashboard/DepartmentDashboard';
+import AdminDashboard from './components/Dashboard/AdminDashboard';
 
 function App() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-
-  // Mock authentication function
-  const handleLogin = (credentials) => {
-    // Simulate different user roles based on email
-    if (credentials.email === 'admin@cgcla.go.tz' || credentials.username === 'admin') {
-      setCurrentUser({ name: 'Admin User', email: 'admin@cgcla.go.tz' });
-      setUserRole('warehouse_manager');
-    } else if (credentials.email === 'employee@cgcla.go.tz' || credentials.username === 'employee') {
-      setCurrentUser({ name: 'Jane Smith', email: 'employee@cgcla.go.tz' });
-      setUserRole('employee');
-    } else if (credentials.email === 'requester@cgcla.go.tz' || credentials.username === 'requester') {
-      setCurrentUser({ name: 'John Doe', email: 'requester@cgcla.go.tz' });
-      setUserRole('requester');
-    } else {
-      // Default to employee role for demo
-      setCurrentUser({ name: 'User', email: credentials.email || credentials.username });
-      setUserRole('employee');
-    }
-  };
+  // Auto-login for demo purposes (remove authentication)
+  const [currentUser] = useState({ 
+    name: 'Demo User', 
+    email: 'demo@cgcla.go.tz',
+    role: 'department_user',
+    department: 'Demo Department'
+  });
+  const [userRole] = useState('department_user');
 
   const handleLogout = () => {
-    setCurrentUser(null);
-    setUserRole(null);
+    // Optional: can add logout functionality later
+    console.log('Logout clicked');
   };
 
   return (
     <Router>
       <div className="App">
         <Routes>
-          {/* Login Route */}
+          {/* Admin Dashboard Routes - Direct Access */}
           <Route 
-            path="/login" 
-            element={
-              !currentUser ? (
-                <Login onLogin={handleLogin} />
-              ) : (
-                <Navigate to="/dashboard" replace />
-              )
-            } 
+            path="/admin/*" 
+            element={<AdminDashboard user={currentUser} onLogout={handleLogout} />} 
           />
           
-          {/* Employee Dashboard Routes */}
+          {/* Department Dashboard Routes - Direct Access */}
+          <Route 
+            path="/department/*" 
+            element={<DepartmentDashboard user={currentUser} onLogout={handleLogout} />} 
+          />
+          
+          {/* Employee Dashboard Routes - Direct Access */}
           <Route 
             path="/dashboard/*" 
-            element={
-              currentUser ? (
-                <EmployeeDashboard user={currentUser} onLogout={handleLogout} />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
+            element={<EmployeeDashboard user={currentUser} onLogout={handleLogout} />} 
           />
           
-          {/* Default Route - redirect to dashboard if logged in, login if not */}
+          {/* Login Route (Optional) */}
+          <Route 
+            path="/login" 
+            element={<Login onLogin={() => {}} />} 
+          />
+          
+          {/* Default Route - redirect to admin dashboard */}
           <Route 
             path="/" 
-            element={
-              currentUser ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
+            element={<Navigate to="/admin" replace />} 
           />
           
-          {/* Catch all route - redirect appropriately */}
+          {/* Catch all route - redirect to admin dashboard */}
           <Route 
             path="*" 
-            element={
-              currentUser ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
+            element={<Navigate to="/admin" replace />} 
           />
         </Routes>
       </div>
