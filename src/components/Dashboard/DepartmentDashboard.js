@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import DepartmentOverview from './DepartmentOverview';
 import MyRequests from './MyRequests';
 import NewRequest from './NewRequest';
-import Inventory from './Inventory';
 import DepartmentSettings from './DepartmentSettings';
 
 const DepartmentDashboard = ({ user, onLogout }) => {
@@ -31,13 +30,6 @@ const DepartmentDashboard = ({ user, onLogout }) => {
       icon: '📋', 
       path: '/department/my-requests',
       description: 'View and track your requests'
-    },
-    { 
-      id: 'inventory', 
-      name: 'Available Items', 
-      icon: '📦', 
-      path: '/department/inventory',
-      description: 'Browse warehouse inventory'
     },
     { 
       id: 'settings', 
@@ -196,7 +188,6 @@ const DepartmentDashboard = ({ user, onLogout }) => {
               <Route path="/" element={<DepartmentOverview user={user} />} />
               <Route path="/new-request" element={<NewRequest user={user} />} />
               <Route path="/my-requests" element={<MyRequests user={user} />} />
-              <Route path="/inventory" element={<Inventory user={user} />} />
               <Route path="/settings" element={<DepartmentSettings user={user} />} />
               <Route path="*" element={<Navigate to="/department" replace />} />
             </Routes>
