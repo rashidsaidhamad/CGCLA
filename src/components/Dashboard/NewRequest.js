@@ -6,7 +6,7 @@ const NewRequest = ({ user }) => {
     category: '',
     quantity: '',
     unit: '',
-    urgency: 'Medium',
+    //urgency: 'Medium',
     requestedDate: '',
     justification: '',
     additionalNotes: ''
@@ -42,11 +42,13 @@ const NewRequest = ({ user }) => {
 
   const categories = [
     'Laboratory Equipment',
-    'Safety Equipment', 
-    'Chemicals',
-    'Consumables',
-    'Office Supplies',
-    'Cleaning Supplies'
+    'Electrical Equipment',
+    'Chemicals & Reagents',
+    'Stationary',
+    'ICT Equipment',
+    'Vehicle Equipment',
+    'Others Equipment',
+    'Cleaning Equipments'
   ];
 
   const units = [
@@ -94,22 +96,13 @@ const NewRequest = ({ user }) => {
         category: '',
         quantity: '',
         unit: '',
-        urgency: 'Medium',
+        //urgency: 'Medium',
         requestedDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
         justification: '',
         additionalNotes: ''
       });
       setIsSubmitting(false);
     }, 2000);
-  };
-
-  const getUrgencyColor = (urgency) => {
-    switch (urgency) {
-      case 'High': return 'border-red-300 bg-red-50';
-      case 'Medium': return 'border-yellow-300 bg-yellow-50';
-      case 'Low': return 'border-green-300 bg-green-50';
-      default: return 'border-gray-300 bg-white';
-    }
   };
 
   return (
@@ -225,29 +218,6 @@ const NewRequest = ({ user }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Urgency Level *
-                  </label>
-                  <div className="space-y-2">
-                    {['High', 'Medium', 'Low'].map((urgency) => (
-                      <label key={urgency} className="flex items-center">
-                        <input
-                          type="radio"
-                          name="urgency"
-                          value={urgency}
-                          checked={formData.urgency === urgency}
-                          onChange={handleInputChange}
-                          className="mr-2"
-                        />
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getUrgencyColor(urgency)}`}>
-                          {urgency}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Requested Date *
                   </label>
                   <input
@@ -309,7 +279,6 @@ const NewRequest = ({ user }) => {
                       category: '',
                       quantity: '',
                       unit: '',
-                      urgency: 'Medium',
                       requestedDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
                       justification: '',
                       additionalNotes: ''
@@ -346,28 +315,7 @@ const NewRequest = ({ user }) => {
   
 
           {/* Department Info */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Info</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Department:</span>
-                <span className="text-sm font-medium text-gray-900">{user?.department || 'Chemistry Lab'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Requester:</span>
-                <span className="text-sm font-medium text-gray-900">{user?.name || 'John Doe'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Budget Code:</span>
-                <span className="text-sm font-medium text-gray-900">CHEM-2025-001</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Approval Required:</span>
-                <span className="text-sm font-medium text-gray-900">Yes</span>
-              </div>
-            </div>
-          </div>
-
+    
           {/* Quick Access */}
      
         </div>
