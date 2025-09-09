@@ -10,6 +10,8 @@ const DepartmentOverview = ({ user }) => {
     quickStats: {}
   });
 
+  const [availableItems, setAvailableItems] = useState([]);
+
   useEffect(() => {
     // Mock data for demonstration
     setStats({
@@ -57,6 +59,80 @@ const DepartmentOverview = ({ user }) => {
         successRate: '85%'
       }
     });
+
+    // Mock available stock items data
+    setAvailableItems([
+      { 
+        id: 'ITEM-001', 
+        name: 'Laboratory Gloves',
+        category: 'Safety Equipment',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-01'
+      },
+      { 
+        id: 'ITEM-002', 
+        name: 'Test Tubes (50ml)',
+        category: 'Glassware',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-02'
+      },
+      { 
+        id: 'ITEM-003', 
+        name: 'Safety Goggles',
+        category: 'Safety Equipment',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-01'
+      },
+      { 
+        id: 'ITEM-004', 
+        name: 'pH Test Strips',
+        category: 'Testing Materials',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-03'
+      },
+      { 
+        id: 'ITEM-005', 
+        name: 'Beakers (250ml)',
+        category: 'Glassware',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-02'
+      },
+      { 
+        id: 'ITEM-006', 
+        name: 'Pipettes',
+        category: 'Laboratory Tools',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-01'
+      },
+      { 
+        id: 'ITEM-007', 
+        name: 'Measuring Cylinders',
+        category: 'Glassware',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-03'
+      },
+      { 
+        id: 'ITEM-008', 
+        name: 'Lab Coats',
+        category: 'Safety Equipment',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-02'
+      },
+      { 
+        id: 'ITEM-009', 
+        name: 'Burette Clamps',
+        category: 'Laboratory Tools',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-01'
+      },
+      { 
+        id: 'ITEM-010', 
+        name: 'Thermometers',
+        category: 'Instruments',
+        availability: 'In Stock',
+        lastUpdated: '2025-09-03'
+      }
+    ]);
   }, []);
 
   const StatCard = ({ title, value, icon, color, trend, subtitle }) => (
@@ -150,100 +226,69 @@ const DepartmentOverview = ({ user }) => {
         />
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <button className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group">
-              <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">➕</span>
-              <span className="text-sm font-medium text-gray-700">New Request</span>
-              <span className="text-xs text-gray-500">Create item request</span>
-            </button>
-            <button className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-green-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group">
-              <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">📋</span>
-              <span className="text-sm font-medium text-gray-700">My Requests</span>
-              <span className="text-xs text-gray-500">Track status</span>
-            </button>
-            <button className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors group">
-              <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">📦</span>
-              <span className="text-sm font-medium text-gray-700">Browse Items</span>
-              <span className="text-xs text-gray-500">Available inventory</span>
-            </button>
-            <button className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-orange-300 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors group">
-              <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">📊</span>
-              <span className="text-sm font-medium text-gray-700">Request History</span>
-              <span className="text-xs text-gray-500">View reports</span>
-            </button>
+      {/* Available Stock Items */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Available Stock Items</h3>
+              <p className="text-sm text-gray-600 mt-1">Items currently available in warehouse</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                {availableItems.length} Items Available
+              </span>
+            </div>
           </div>
         </div>
-
-        {/* Recent Requests */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Requests</h3>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-              View all
-            </button>
-          </div>
-          <div className="space-y-4">
-            {stats.recentRequests.map((request) => (
-              <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-900">{request.item}</span>
-                    <span className={`text-xs font-medium ${getUrgencyColor(request.urgency)}`}>
-                      {request.urgency}
-                    </span>
-                  </div>
-                  <div className="flex items-center text-xs text-gray-500">
-                    <span>{request.id}</span>
-                    <span className="mx-2">•</span>
-                    <span>Qty: {request.quantity}</span>
-                    <span className="mx-2">•</span>
-                    <span>{request.date}</span>
-                  </div>
+        
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {availableItems.map((item) => (
+              <div 
+                key={item.id} 
+                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="font-medium text-gray-900 text-sm leading-tight">{item.name}</h4>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 ml-2">
+                    ✓ Available
+                  </span>
                 </div>
-                <span className={`ml-4 inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(request.status)}`}>
-                  {request.status}
-                </span>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-medium">Category:</span> {item.category}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Updated: {new Date(item.lastUpdated).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
+          
+          {availableItems.length === 0 && (
+            <div className="text-center py-8">
+              <div className="text-gray-400 text-6xl mb-4">📦</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Items Available</h3>
+              <p className="text-gray-600">Check back later or contact the warehouse manager.</p>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Quick Actions */}
+        {/* Recent Requests */}
+
       </div>
 
       {/* Department Info & Guidelines */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Department Performance */}
-
-
         {/* Request Guidelines */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Request Guidelines</h3>
-          <div className="space-y-3">
-            <div className="flex items-start">
-              <span className="text-green-500 mr-2">✓</span>
-              <span className="text-sm text-gray-600">Submit requests 3-5 days in advance</span>
-            </div>
-            <div className="flex items-start">
-              <span className="text-green-500 mr-2">✓</span>
-              <span className="text-sm text-gray-600">Provide accurate quantity estimates</span>
-            </div>
-            <div className="flex items-start">
-              <span className="text-green-500 mr-2">✓</span>
-              <span className="text-sm text-gray-600">Include justification for urgent requests</span>
-            </div>
-            <div className="flex items-start">
-              <span className="text-green-500 mr-2">✓</span>
-              <span className="text-sm text-gray-600">Check inventory before requesting</span>
-            </div>
-          </div>
-        </div>
-
         {/* System Status */}
-    
       </div>
     </div>
   );

@@ -12,12 +12,6 @@ const AdminDashboard = ({ user, onLogout }) => {
 
   const menuItems = [
     { 
-      path: '/admin', 
-      name: 'Overview', 
-      icon: '🏠',
-      description: 'System overview and statistics'
-    },
-    { 
       path: '/admin/users', 
       name: 'User Management', 
       icon: '👥',
@@ -176,12 +170,11 @@ const AdminDashboard = ({ user, onLogout }) => {
         <main className="flex-1 overflow-y-auto bg-gray-50">
           <div className="p-6">
             <Routes>
-              <Route path="/" element={<AdminOverview user={user} />} />
               <Route path="/users" element={<UserManagement user={user} />} />
               <Route path="/departments" element={<DepartmentManagement user={user} />} />
               <Route path="/roles" element={<RoleManagement user={user} />} />
               <Route path="/settings" element={<SystemSettings user={user} />} />
-              <Route path="*" element={<Navigate to="/admin" replace />} />
+              <Route path="*" element={<Navigate to="/admin/users" replace />} />
             </Routes>
           </div>
         </main>

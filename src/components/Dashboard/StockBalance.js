@@ -186,42 +186,7 @@ const StockBalance = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <span className="text-2xl">📦</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Items</p>
-              <p className="text-2xl font-bold text-gray-900">{inventory.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-100 rounded-lg">
-              <span className="text-2xl">💰</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Value</p>
-              <p className="text-2xl font-bold text-gray-900">${totalValue.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
- 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-yellow-100 rounded-lg">
-              <span className="text-2xl">⚠️</span>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Low Stock</p>
-              <p className="text-2xl font-bold text-gray-900">{lowStockItems}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+   
 
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -305,9 +270,6 @@ const StockBalance = () => {
                   Value
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Last Updated
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -346,11 +308,6 @@ const StockBalance = () => {
                         @${item.unitPrice} per {item.unit}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStockColor(status)}`}>
-                        {status}
-                      </span>
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(item.lastUpdated).toLocaleDateString()}
                     </td>
@@ -388,6 +345,105 @@ const StockBalance = () => {
       <div className="text-sm text-gray-500">
         Showing {filteredInventory.length} of {inventory.length} items
       </div>
+
+      {/* Add Item Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+            <h3 className="text-lg font-semibold mb-4">Receive Item in Stock</h3>
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                const form = e.target;
+                const newItem = {
+                  id: form.id.value,
+                  name: form.name.value,
+                  category: form.category.value,
+                  stock: parseInt(form.stock.value, 10),
+                  minStock: parseInt(form.minStock.value, 10),
+                  maxStock: parseInt(form.maxStock.value, 10),
+                  unit: form.unit.value,
+                  location: form.location.value,
+                  supplier: form.supplier.value,
+                  unitPrice: parseFloat(form.unitPrice.value),
+                  totalValue: parseFloat(form.unitPrice.value) * parseInt(form.stock.value, 10),
+                  lastUpdated: new Date().toISOString().split('T')[0],
+                  expiryDate: form.expiryDate.value || null
+                };
+                setInventory(prev => [...prev, newItem]);
+                setShowAddModal(false);
+              }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item ID</label>
+                  <input name="id" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input name="name" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select name="category" required className="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="" disabled selected>Select category</option>
+                    {categories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
+                  <input name="stock" type="number" min="0" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
+                  <input name="minStock" type="number" min="0" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Stock</label>
+                  <input name="maxStock" type="number" min="0" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <input name="unit" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <input name="location" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                  <input name="supplier" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price</label>
+                  <input name="unitPrice" type="number" min="0" step="0.01" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                  <input name="expiryDate" type="date" className="w-full border border-gray-300 rounded-md px-3 py-2" />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Receive Item
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

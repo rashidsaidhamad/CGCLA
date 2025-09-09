@@ -4,6 +4,13 @@ import Login from './components/auth/Login';
 import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
 import DepartmentDashboard from './components/Dashboard/DepartmentDashboard';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
+import ChiefDashboard from './components/Dashboard/ChiefDashboard';
+import SuppliersDashboard from './components/Suppliers/SuppliersDashboard';
+          {/* Suppliers Dashboard Route */}
+          <Route 
+            path="/suppliers/*" 
+            element={<SuppliersDashboard />} 
+          />
 
 function App() {
   // Auto-login for demo purposes (remove authentication)
@@ -24,6 +31,12 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
+          {/* Chief Dashboard Routes - Direct Access */}
+          <Route 
+            path="/chief/*" 
+            element={<ChiefDashboard user={currentUser} onLogout={handleLogout} />} 
+          />
+          
           {/* Admin Dashboard Routes - Direct Access */}
           <Route 
             path="/admin/*" 

@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import Overview from './Overview';
-import Requesters from './Requesters';
-import Reports from './Reports';
-import Settings from './Settings';
-import StockBalance from './StockBalance';
+import ChiefOverview from './ChiefOverview';
+import MonthlyStockReport from './MonthlyStockReport';
 
-const EmployeeDashboard = ({ user, onLogout }) => {
+const ChiefDashboard = ({ user, onLogout }) => {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -14,44 +11,16 @@ const EmployeeDashboard = ({ user, onLogout }) => {
     { 
       id: 'overview', 
       name: 'Overview', 
-      icon: '🏠', 
-      path: '/dashboard',
-      description: 'Dashboard overview and statistics'
-    },
-    { 
-      id: 'requesters', 
-      name: 'Requesters', 
-      icon: '👥', 
-      path: '/dashboard/requesters',
-      description: 'Manage item requesters'
-    },
-    { 
-      id: 'reports', 
-      name: 'Reports', 
       icon: '📊', 
-      path: '/dashboard/reports',
-      description: 'Analytics and reports'
+      path: '/chief',
+      description: 'Monthly reports summary'
     },
     { 
-      id: 'stock-balance', 
-      name: 'Stock Balance', 
-      icon: '📦', 
-      path: '/dashboard/stock-balance',
-      description: 'Inventory stock management'
-    },
-    {
-      id: 'suppliers',
-      name: 'Suppliers',
-      icon: '🚚',
-      path: '/dashboard/suppliers',
-      description: 'Goods Receiving Note & Supplier Info'
-    },
-    { 
-      id: 'settings', 
-      name: 'Settings', 
-      icon: '⚙️', 
-      path: '/dashboard/settings',
-      description: 'System settings and preferences'
+      id: 'stock-reports', 
+      name: 'Stock Reports', 
+      icon: '📈', 
+      path: '/chief/stock-reports',
+      description: 'Monthly stock issued and available'
     }
   ];
 
@@ -70,8 +39,8 @@ const EmployeeDashboard = ({ user, onLogout }) => {
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
               <div>
-                <h2 className="text-lg font-bold text-gray-900">CGCLA</h2>
-                <p className="text-xs text-gray-600">Warehouse System</p>
+                <h2 className="text-lg font-bold text-blue-900">CGCLA</h2>
+                <p className="text-xs text-blue-600">Chief Portal</p>
               </div>
             </div>
           )}
@@ -118,22 +87,36 @@ const EmployeeDashboard = ({ user, onLogout }) => {
           })}
         </nav>
 
+        {/* Chief Info */}
+        {sidebarOpen && (
+          <div className="border-t border-gray-200 p-4">
+            <div className="bg-purple-50 rounded-lg p-3 mb-3">
+              <h4 className="text-sm font-medium text-purple-900">
+                Chief Executive
+              </h4>
+              <p className="text-xs text-purple-600">
+                Stock & Operations
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* User Profile Section */}
         <div className="border-t border-gray-200 p-4">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-sm font-medium">
-                  {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                  {user?.name ? user.name.charAt(0).toUpperCase() : 'C'}
                 </span>
               </div>
             </div>
             {sidebarOpen && (
               <div className="ml-3 flex-1">
                 <p className="text-sm font-medium text-gray-900">
-                  {user?.name || 'Employee'}
+                  {user?.name || 'Chief Executive'}
                 </p>
-                <p className="text-xs text-gray-600">Warehouse Staff</p>
+                <p className="text-xs text-gray-600">Chief Officer</p>
               </div>
             )}
             <button
@@ -156,10 +139,10 @@ const EmployeeDashboard = ({ user, onLogout }) => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                {menuItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
+                {menuItems.find(item => item.path === location.pathname)?.name || 'Chief Portal'}
               </h1>
               <p className="text-sm text-gray-600 mt-1">
-                CGCLA Warehouse Management System
+                CGCLA Warehouse Management - Executive Overview
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -174,8 +157,9 @@ const EmployeeDashboard = ({ user, onLogout }) => {
                   day: 'numeric' 
                 })}
               </div>
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-xs text-gray-600">Online</span>
               </div>
             </div>
           </div>
@@ -185,13 +169,9 @@ const EmployeeDashboard = ({ user, onLogout }) => {
         <main className="flex-1 overflow-y-auto bg-gray-50">
           <div className="p-6">
             <Routes>
-              <Route path="/" element={<Overview />} />
-              <Route path="/requesters" element={<Requesters />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/stock-balance" element={<StockBalance />} />
-              <Route path="/suppliers" element={React.createElement(require('./SuppliersPage').default)} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<ChiefOverview user={user} />} />
+              <Route path="/stock-reports" element={<MonthlyStockReport user={user} />} />
+              <Route path="*" element={<Navigate to="/chief" replace />} />
             </Routes>
           </div>
         </main>
@@ -200,4 +180,4 @@ const EmployeeDashboard = ({ user, onLogout }) => {
   );
 };
 
-export default EmployeeDashboard;
+export default ChiefDashboard;

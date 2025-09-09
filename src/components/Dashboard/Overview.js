@@ -81,13 +81,7 @@ const Overview = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-        <StatCard
-          title="Total Requests"
-          value={stats.totalRequests}
-          icon="📋"
-          color="bg-blue-100"
-          change={{ positive: true, value: '12%' }}
-        />
+      
         <StatCard
           title="Pending Requests"
           value={stats.pendingRequests}
@@ -95,20 +89,7 @@ const Overview = () => {
           color="bg-yellow-100"
           change={{ positive: false, value: '5%' }}
         />
-        <StatCard
-          title="Total Items"
-          value={stats.totalItems}
-          icon="📦"
-          color="bg-green-100"
-          change={{ positive: true, value: '8%' }}
-        />
-        <StatCard
-          title="Low Stock Items"
-          value={stats.lowStockItems}
-          icon="⚠️"
-          color="bg-red-100"
-          change={{ positive: false, value: '3%' }}
-        />
+      
         <StatCard
           title="Active Requesters"
           value={stats.totalRequesters}
