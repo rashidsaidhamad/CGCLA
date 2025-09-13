@@ -96,11 +96,18 @@ const AdminDashboard = ({ user, onLogout }) => {
             <div className="mb-4">
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  {user?.name?.charAt(0) || 'A'}
+                  {user?.first_name ? user.first_name.charAt(0).toUpperCase() : 
+                   user?.username ? user.username.charAt(0).toUpperCase() : 'A'}
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-900">{user?.name || 'Administrator'}</p>
-                  <p className="text-xs text-gray-600">System Administrator</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.first_name && user?.last_name 
+                      ? `${user.first_name} ${user.last_name}`
+                      : user?.username || 'Administrator'}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {user?.role?.name || 'System Administrator'}
+                  </p>
                 </div>
               </div>
             </div>

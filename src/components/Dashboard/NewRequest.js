@@ -15,21 +15,69 @@ const NewRequest = ({ user }) => {
   const [availableItems, setAvailableItems] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    // Mock available items data
-    setAvailableItems([
-      { id: 1, name: 'Laboratory Gloves', category: 'Safety Equipment', unit: 'pairs', available: 500 },
-      { id: 2, name: 'Test Tubes (50ml)', category: 'Laboratory Equipment', unit: 'pieces', available: 200 },
-      { id: 3, name: 'Safety Goggles', category: 'Safety Equipment', unit: 'pieces', available: 30 },
-      { id: 4, name: 'pH Test Strips', category: 'Chemicals', unit: 'strips', available: 15 },
-      { id: 5, name: 'Beakers (500ml)', category: 'Laboratory Equipment', unit: 'pieces', available: 75 },
-      { id: 6, name: 'Distilled Water', category: 'Chemicals', unit: 'liters', available: 120 },
-      { id: 7, name: 'Microscope Slides', category: 'Laboratory Equipment', unit: 'pieces', available: 300 },
-      { id: 8, name: 'Pipettes', category: 'Laboratory Equipment', unit: 'pieces', available: 45 },
-      { id: 9, name: 'Lab Coats', category: 'Safety Equipment', unit: 'pieces', available: 25 },
-      { id: 10, name: 'Chemical Indicators', category: 'Chemicals', unit: 'bottles', available: 80 }
-    ]);
+    // Fetch available items from Django backend
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        
+        // Fetch inventory items
+        const itemsResponse = await fetch('http://127.0.0.1:8000/api/inventory/items/', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        // Fetch categories
+        const categoriesResponse = await fetch('http://127.0.0.1:8000/api/inventory/categories/', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (itemsResponse.ok && categoriesResponse.ok) {
+          const itemsData = await itemsResponse.json();
+          const categoriesData = await categoriesResponse.json();
+          
+          setAvailableItems(itemsData.map(item => ({
+            id: item.id,
+            name: item.name,
+            category: item.category?.name || '',
+            unit: item.unit,
+            available: item.stock
+          })));
+          
+          setCategories(categoriesData.map(cat => cat.name));
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // Fallback to mock data
+        setAvailableItems([
+          { id: 1, name: 'Laboratory Gloves', category: 'Safety Equipment', unit: 'pairs', available: 500 },
+          { id: 2, name: 'Test Tubes (50ml)', category: 'Laboratory Equipment', unit: 'pieces', available: 200 },
+          { id: 3, name: 'Safety Goggles', category: 'Safety Equipment', unit: 'pieces', available: 30 },
+          { id: 4, name: 'pH Test Strips', category: 'Chemicals', unit: 'strips', available: 15 },
+          { id: 5, name: 'Beakers (500ml)', category: 'Laboratory Equipment', unit: 'pieces', available: 75 }
+        ]);
+        
+        setCategories([
+          'Laboratory Equipment',
+          'Electrical Equipment',
+          'Chemicals & Reagents',
+          'Stationary',
+          'ICT Equipment',
+          'Vehicle Equipment',
+          'Others Equipment',
+          'Cleaning Equipments'
+        ]);
+      }
+    };
+
+    fetchData();
 
     // Set default requested date to tomorrow
     const tomorrow = new Date();
@@ -39,17 +87,6 @@ const NewRequest = ({ user }) => {
       requestedDate: tomorrow.toISOString().split('T')[0]
     }));
   }, []);
-
-  const categories = [
-    'Laboratory Equipment',
-    'Electrical Equipment',
-    'Chemicals & Reagents',
-    'Stationary',
-    'ICT Equipment',
-    'Vehicle Equipment',
-    'Others Equipment',
-    'Cleaning Equipments'
-  ];
 
   const units = [
     'pieces', 'pairs', 'sets', 'bottles', 'liters', 'kg', 'grams', 'meters', 'boxes', 'packs'
@@ -86,23 +123,57 @@ const NewRequest = ({ user }) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Mock API call
-    setTimeout(() => {
-      alert('Request submitted successfully! Request ID: REQ-' + Math.random().toString(36).substr(2, 6).toUpperCase());
+    try {
+      const token = localStorage.getItem('access_token');
       
-      // Reset form
-      setFormData({
-        itemName: '',
-        category: '',
-        quantity: '',
-        unit: '',
-        //urgency: 'Medium',
-        requestedDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        justification: '',
-        additionalNotes: ''
+      // Find the selected item to get its ID
+      const selectedItem = availableItems.find(item => item.name === formData.itemName);
+      
+      if (!selectedItem) {
+        alert('Please select a valid item from the suggestions.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const requestData = {
+        item: selectedItem.id,
+        quantity: parseInt(formData.quantity),
+        feedback: formData.justification + (formData.additionalNotes ? '\n\nAdditional Notes: ' + formData.additionalNotes : '')
+      };
+
+      const response = await fetch('http://127.0.0.1:8000/api/requests/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Request submitted successfully! Request ID: REQ-${data.id}`);
+        
+        // Reset form
+        setFormData({
+          itemName: '',
+          category: '',
+          quantity: '',
+          unit: '',
+          requestedDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+          justification: '',
+          additionalNotes: ''
+        });
+      } else {
+        const errorData = await response.json();
+        alert('Failed to submit request: ' + (errorData.detail || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      alert('Failed to submit request. Please check your connection and try again.');
+    } finally {
       setIsSubmitting(false);
-    }, 2000);
+    }
   };
 
   return (

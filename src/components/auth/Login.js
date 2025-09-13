@@ -53,28 +53,57 @@ const Login = ({ onLogin }) => {
     setError('');
 
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock authentication with username/password combinations
-      const validCredentials = [
+      // Make API call to Django backend
+      const response = await fetch('http://127.0.0.1:8000/api/auth/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: credentials.username,
+          password: credentials.password,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
         
-      ];
+        // Store tokens in localStorage
+        localStorage.setItem('access_token', data.access);
+        localStorage.setItem('refresh_token', data.refresh);
+        
+        // Get user profile
+        const profileResponse = await fetch('http://127.0.0.1:8000/api/auth/profile/', {
+          headers: {
+            'Authorization': `Bearer ${data.access}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      const user = validCredentials.find(
-        cred => cred.username === credentials.username && cred.password === credentials.password
-      );
-
-      if (user) {
-        // Successful login - call the onLogin prop function
-        if (onLogin) {
-          onLogin(credentials);
+        if (profileResponse.ok) {
+          const userData = await profileResponse.json();
+          
+          // Call onLogin with user data including role information
+          if (onLogin) {
+            onLogin({
+              ...credentials,
+              user: userData,
+              tokens: {
+                access: data.access,
+                refresh: data.refresh,
+              }
+            });
+          }
+        } else {
+          setError('Failed to fetch user profile.');
         }
       } else {
-        setError('Invalid username or password. Please try again.');
+        const errorData = await response.json();
+        setError(errorData.detail || 'Invalid username or password. Please try again.');
       }
     } catch (err) {
-      setError('Login failed. Please try again.');
+      setError('Login failed. Please check your connection and try again.');
+      console.error('Login error:', err);
     } finally {
       setIsLoading(false);
     }
