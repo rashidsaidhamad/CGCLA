@@ -1,343 +1,416 @@
 import React, { useState, useEffect } from 'react';
 
 const Reports = () => {
-  const [selectedReport, setSelectedReport] = useState('overview');
-  const [dateRange, setDateRange] = useState('last30days');
-  const [reportData, setReportData] = useState({});
+  const [reportData, setReportData] = useState({
+    inventoryReport: null,
+    issuedReport: null
+  });
+  const [selectedReport, setSelectedReport] = useState('inventory');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [dateRange, setDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
 
-  useEffect(() => {
-    // Mock data for demonstration
-    setReportData({
-      overview: {
-        totalRequests: 145,
-        approvedRequests: 98,
-        rejectedRequests: 15,
-        pendingRequests: 32,
-        requestTrend: [
-          { month: 'Jan', requests: 45 },
-          { month: 'Feb', requests: 52 },
-          { month: 'Mar', requests: 48 },
-          { month: 'Apr', requests: 61 },
-          { month: 'May', requests: 55 },
-          { month: 'Jun', requests: 67 }
-        ]
-      },
-      inventory: {
-        totalItems: 1250,
-        lowStockItems: 15,
-        outOfStockItems: 5,
-        categories: [
-          { name: 'Laboratory Equipment', count: 450, percentage: 36 },
-          { name: 'Safety Equipment', count: 320, percentage: 26 },
-          { name: 'Chemicals', count: 280, percentage: 22 },
-          { name: 'Consumables', count: 200, percentage: 16 }
-        ]
-      },
-      requesters: {
-        totalRequesters: 48,
-        activeRequesters: 35,
-        topRequesters: [
-          { name: 'Dr. John Doe', requests: 45, department: 'Chemistry Lab' },
-          { name: 'Prof. Mike Johnson', requests: 38, department: 'Physics Lab' },
-          { name: 'Dr. Jane Smith', requests: 32, department: 'Biology Lab' },
-          { name: 'Dr. Sarah Wilson', requests: 28, department: 'Environmental Lab' }
-        ]
+  // API configuration
+  const API_BASE = 'http://127.0.0.1:8000/api';
+  const getAuthToken = () => localStorage.getItem('access_token');
+  const getHeaders = () => ({
+    'Authorization': `Bearer ${getAuthToken()}`,
+    'Content-Type': 'application/json',
+  });
+
+  // Fetch specific report
+  const fetchReport = async (reportType) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const endpoints = {
+        inventory: '/reports/inventory-report/',
+        issued: '/reports/request-report/'
+      };
+
+      const response = await fetch(`${API_BASE}${endpoints[reportType]}`, {
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    });
-  }, [selectedReport, dateRange]);
-
-  const reportTypes = [
-    { id: 'overview', name: 'Overview Report', icon: '📊', description: 'General system overview and statistics' },
-    { id: 'inventory', name: 'Inventory Report', icon: '📦', description: 'Stock levels and inventory analysis' },
-    { id: 'requesters', name: 'Requesters Report', icon: '👥', description: 'Requester activity and statistics' },
-    { id: 'requests', name: 'Requests Report', icon: '📋', description: 'Request trends and analysis' }
-  ];
-
-  const generateReport = () => {
-    alert(`Generating ${reportTypes.find(r => r.id === selectedReport)?.name} for ${dateRange}`);
-  };
-
-  const exportReport = (format) => {
-    alert(`Exporting report as ${format.toUpperCase()}`);
-  };
-
-  const StatCard = ({ title, value, icon, color, change }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
-          {change && (
-            <p className={`text-sm mt-2 ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {change > 0 ? '↑' : '↓'} {Math.abs(change)}% from last period
-            </p>
-          )}
-        </div>
-        <div className={`w-12 h-12 rounded-lg ${color} flex items-center justify-center`}>
-          <span className="text-2xl">{icon}</span>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderOverviewReport = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Requests"
-          value={reportData.overview?.totalRequests || 0}
-          icon="📋"
-          color="bg-blue-100"
-          change={12}
-        />
-        <StatCard
-          title="Approved"
-          value={reportData.overview?.approvedRequests || 0}
-          icon="✅"
-          color="bg-green-100"
-          change={8}
-        />
-        <StatCard
-          title="Rejected"
-          value={reportData.overview?.rejectedRequests || 0}
-          icon="❌"
-          color="bg-red-100"
-          change={-5}
-        />
-        <StatCard
-          title="Pending"
-          value={reportData.overview?.pendingRequests || 0}
-          icon="⏳"
-          color="bg-yellow-100"
-          change={3}
-        />
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Request Trends</h3>
-        <div className="h-64 flex items-end justify-between space-x-2">
-          {reportData.overview?.requestTrend?.map((item, index) => (
-            <div key={index} className="flex flex-col items-center flex-1">
-              <div
-                className="bg-blue-500 rounded-t w-full"
-                style={{ height: `${(item.requests / 70) * 100}%` }}
-              ></div>
-              <span className="text-xs text-gray-600 mt-2">{item.month}</span>
-              <span className="text-xs font-medium text-gray-900">{item.requests}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderInventoryReport = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard
-          title="Total Items"
-          value={reportData.inventory?.totalItems || 0}
-          icon="📦"
-          color="bg-blue-100"
-          change={5}
-        />
-        <StatCard
-          title="Low Stock"
-          value={reportData.inventory?.lowStockItems || 0}
-          icon="⚠️"
-          color="bg-yellow-100"
-          change={-10}
-        />
-        <StatCard
-          title="Out of Stock"
-          value={reportData.inventory?.outOfStockItems || 0}
-          icon="🚫"
-          color="bg-red-100"
-          change={-25}
-        />
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Inventory by Category</h3>
-        <div className="space-y-4">
-          {reportData.inventory?.categories?.map((category, index) => (
-            <div key={index} className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-gray-900">{category.name}</span>
-                  <span className="text-sm text-gray-500">{category.count} items</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: `${category.percentage}%` }}
-                  ></div>
-                </div>
-              </div>
-              <span className="ml-4 text-sm font-medium text-gray-900">{category.percentage}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderRequestersReport = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <StatCard
-          title="Total Requesters"
-          value={reportData.requesters?.totalRequesters || 0}
-          icon="👥"
-          color="bg-purple-100"
-          change={15}
-        />
-        <StatCard
-          title="Active Requesters"
-          value={reportData.requesters?.activeRequesters || 0}
-          icon="✅"
-          color="bg-green-100"
-          change={8}
-        />
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Requesters</h3>
-        <div className="space-y-4">
-          {reportData.requesters?.topRequesters?.map((requester, index) => (
-            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <span className="text-blue-600 font-medium text-sm">
-                    {requester.name.split(' ').map(n => n[0]).join('')}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{requester.name}</p>
-                  <p className="text-xs text-gray-500">{requester.department}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-gray-900">{requester.requests}</p>
-                <p className="text-xs text-gray-500">requests</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderReportContent = () => {
-    switch (selectedReport) {
-      case 'overview':
-        return renderOverviewReport();
-      case 'inventory':
-        return renderInventoryReport();
-      case 'requesters':
-        return renderRequestersReport();
-      default:
-        return <div className="text-center py-8">Select a report type to view data</div>;
+      
+      const data = await response.json();
+      console.log(`${reportType} report data:`, data);
+      
+      setReportData(prev => ({
+        ...prev,
+        [`${reportType}Report`]: data
+      }));
+    } catch (error) {
+      console.error(`Error fetching ${reportType} report:`, error);
+      setError(`Failed to load ${reportType} report. Please try again.`);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchReport(selectedReport);
+  }, [selectedReport]);
+
+  // Handle report type change
+  const handleReportChange = (reportType) => {
+    setSelectedReport(reportType);
+    if (!reportData[`${reportType}Report`]) {
+      fetchReport(reportType);
+    }
+  };
+
+  // Export report as CSV
+  const exportToCSV = (data, filename) => {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => row[header] || '').join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Print report
+  const printReport = () => {
+    window.print();
+  };
+
+  // Get current report data
+  const getCurrentReportData = () => {
+    return reportData[`${selectedReport}Report`];
+  };
+
+  // Render report content based on type
+  const renderReportContent = () => {
+    const currentData = getCurrentReportData();
+    
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!currentData) {
+      return (
+        <div className="text-center py-12">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No report data</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Select a report type to view data.
+          </p>
+        </div>
+      );
+    }
+
+    // Render based on report type
+    switch (selectedReport) {
+      case 'inventory':
+        return renderInventoryReport(currentData);
+      case 'issued':
+        return renderIssuedReport(currentData);
+      default:
+        return <div>Unknown report type</div>;
+    }
+  };
+
+  // Render inventory report
+  const renderInventoryReport = (data) => {
+    const items = data.items || data || [];
+    
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-900">Total Items</h4>
+            <p className="text-2xl font-bold text-blue-600">{items.length}</p>
+          </div>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-green-900">In Stock</h4>
+            <p className="text-2xl font-bold text-green-600">
+              {items.filter(item => item.quantity > 0).length}
+            </p>
+          </div>
+          <div className="bg-yellow-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-yellow-900">Low Stock</h4>
+            <p className="text-2xl font-bold text-yellow-600">
+              {items.filter(item => item.quantity <= 10 && item.quantity > 0).length}
+            </p>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-red-900">Out of Stock</h4>
+            <p className="text-2xl font-bold text-red-600">
+              {items.filter(item => item.quantity === 0).length}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {items.map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {item.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.category?.name || 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item.quantity}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ${item.unit_price || 0}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ${((item.quantity || 0) * (item.unit_price || 0)).toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      item.quantity === 0 
+                        ? 'bg-red-100 text-red-800'
+                        : item.quantity <= 10
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {item.quantity === 0 ? 'Out of Stock' : item.quantity <= 10 ? 'Low Stock' : 'In Stock'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  // Render issued report (requests)
+  const renderIssuedReport = (data) => {
+    const requests = data.requests || data || [];
+    
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-900">Total Issued</h4>
+            <p className="text-2xl font-bold text-blue-600">{requests.length}</p>
+          </div>
+          <div className="bg-yellow-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-yellow-900">Pending</h4>
+            <p className="text-2xl font-bold text-yellow-600">
+              {requests.filter(r => r.status === 'pending').length}
+            </p>
+          </div>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-green-900">Approved</h4>
+            <p className="text-2xl font-bold text-green-600">
+              {requests.filter(r => r.status === 'approved').length}
+            </p>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-red-900">Rejected</h4>
+            <p className="text-2xl font-bold text-red-600">
+              {requests.filter(r => r.status === 'rejected').length}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Issued</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {requests.map((request, index) => (
+                <tr key={request.id || index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {new Date(request.created_at || request.date).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {(() => {
+                      const user = request.requester || request.user;
+                      if (user?.first_name && user?.last_name) {
+                        return `${user.first_name} ${user.last_name}`;
+                      }
+                      return user?.username || user?.email || 'N/A';
+                    })()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {(() => {
+                      const user = request.requester || request.user;
+                      const dept = user?.department || request.department;
+                      return dept?.name || 'N/A';
+                    })()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {typeof request.item === 'object' && request.item !== null 
+                      ? request.item.name || request.item.item_name || `Item ID: ${request.item.id}`
+                      : request.item_name || 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {request.quantity}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      request.status === 'approved' 
+                        ? 'bg-green-100 text-green-800'
+                        : request.status === 'rejected'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {request.status || 'pending'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Generate and view comprehensive reports for warehouse operations
-          </p>
-        </div>
-        <div className="mt-4 sm:mt-0 flex space-x-2">
-          <button
-            onClick={generateReport}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200 flex items-center"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Generate
-          </button>
-          <div className="relative">
-            <button className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-200 flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-xl shadow-lg p-8 text-white">
+        <h1 className="text-3xl font-bold mb-2">Reports & Analytics</h1>
+        <p className="text-indigo-100 text-lg">
+          Comprehensive reports and data insights
+        </p>
+      </div>
+
+      {/* Report Controls */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
+          {/* Report Type Selector */}
+          <div className="flex space-x-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Report Type
+              </label>
+              <select
+                value={selectedReport}
+                onChange={(e) => handleReportChange(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="inventory">Inventory Report</option>
+                <option value="issued">Issued Report</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex space-x-4">
+            <button
+              onClick={() => fetchReport(selectedReport)}
+              disabled={isLoading}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
               </svg>
-              Export
+              Refresh
+            </button>
+            
+            <button
+              onClick={() => exportToCSV(getCurrentReportData(), selectedReport)}
+              disabled={!getCurrentReportData()}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Export CSV
+            </button>
+            
+            <button
+              onClick={printReport}
+              disabled={!getCurrentReportData()}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
+              </svg>
+              Print
             </button>
           </div>
         </div>
       </div>
 
-      {/* Report Type Selection */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-          <div className="flex flex-wrap gap-2">
-            {reportTypes.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => setSelectedReport(type.id)}
-                className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedReport === type.id
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <span className="mr-2">{type.icon}</span>
-                {type.name}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center space-x-4">
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="last7days">Last 7 days</option>
-              <option value="last30days">Last 30 days</option>
-              <option value="last3months">Last 3 months</option>
-              <option value="last6months">Last 6 months</option>
-              <option value="lastyear">Last year</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       {/* Report Content */}
-      <div>
-        {renderReportContent()}
-      </div>
-
-      {/* Export Options */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Options</h3>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => exportReport('pdf')}
-            className="flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-          >
-            <span className="mr-2">📄</span>
-            Export as PDF
-          </button>
-          <button
-            onClick={() => exportReport('excel')}
-            className="flex items-center px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-          >
-            <span className="mr-2">📊</span>
-            Export as Excel
-          </button>
-          <button
-            onClick={() => exportReport('csv')}
-            className="flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-          >
-            <span className="mr-2">📋</span>
-            Export as CSV
-          </button>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 capitalize">
+            {selectedReport.replace(/([A-Z])/g, ' $1').trim()} Report
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+          </p>
         </div>
+        
+        {renderReportContent()}
       </div>
     </div>
   );

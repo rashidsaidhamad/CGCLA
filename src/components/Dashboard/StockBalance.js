@@ -1,337 +1,419 @@
 import React, { useState, useEffect } from 'react';
 
 const StockBalance = () => {
-  const [inventory, setInventory] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [stockTransactions, setStockTransactions] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('name');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
-  useEffect(() => {
-    // Mock data for demonstration
-    setInventory([
-      {
-        id: 'ITEM-001',
-        name: 'Laboratory Gloves',
-        category: 'Safety Equipment',
-        stock: 500,
-        minStock: 100,
-        maxStock: 1000,
-        unit: 'pairs',
-        location: 'A1-B2',
-        supplier: 'SafetyFirst Ltd',
-        unitPrice: 2.50,
-        totalValue: 1250,
-        lastUpdated: '2025-08-25',
-        expiryDate: '2026-08-25'
-      },
-      {
-        id: 'ITEM-002',
-        name: 'Test Tubes (50ml)',
-        category: 'Laboratory Equipment',
-        stock: 200,
-        minStock: 50,
-        maxStock: 500,
-        unit: 'pieces',
-        location: 'B2-C3',
-        supplier: 'LabGlass Co',
-        unitPrice: 1.75,
-        totalValue: 350,
-        lastUpdated: '2025-08-24',
-        expiryDate: null
-      },
-      {
-        id: 'ITEM-003',
-        name: 'Safety Goggles',
-        category: 'Safety Equipment',
-        stock: 30,
-        minStock: 20,
-        maxStock: 100,
-        unit: 'pieces',
-        location: 'A1-A2',
-        supplier: 'SafetyFirst Ltd',
-        unitPrice: 15.00,
-        totalValue: 450,
-        lastUpdated: '2025-08-23',
-        expiryDate: null
-      },
-      {
-        id: 'ITEM-004',
-        name: 'pH Test Strips',
-        category: 'Chemicals',
-        stock: 15,
-        minStock: 50,
-        maxStock: 200,
-        unit: 'strips',
-        location: 'C1-D2',
-        supplier: 'ChemTest Inc',
-        unitPrice: 0.25,
-        totalValue: 3.75,
-        lastUpdated: '2025-08-22',
-        expiryDate: '2025-12-31'
-      },
-      {
-        id: 'ITEM-005',
-        name: 'Beakers (500ml)',
-        category: 'Laboratory Equipment',
-        stock: 75,
-        minStock: 25,
-        maxStock: 150,
-        unit: 'pieces',
-        location: 'B1-B3',
-        supplier: 'LabGlass Co',
-        unitPrice: 8.50,
-        totalValue: 637.50,
-        lastUpdated: '2025-08-21',
-        expiryDate: null
-      },
-      {
-        id: 'ITEM-006',
-        name: 'Distilled Water',
-        category: 'Chemicals',
-        stock: 120,
-        minStock: 50,
-        maxStock: 300,
-        unit: 'liters',
-        location: 'C2-D3',
-        supplier: 'PureWater Ltd',
-        unitPrice: 1.20,
-        totalValue: 144,
-        lastUpdated: '2025-08-20',
-        expiryDate: '2026-02-20'
+  // API configuration
+  const API_BASE = 'http://127.0.0.1:8000/api';
+  const getAuthToken = () => localStorage.getItem('access_token');
+  const getHeaders = () => ({
+    'Authorization': `Bearer ${getAuthToken()}`,
+    'Content-Type': 'application/json',
+  });
+
+  // Fetch inventory items
+  const fetchInventoryItems = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE}/inventory/items/`, {
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    ]);
-  }, []);
-
-  const getStockStatus = (current, minimum, maximum) => {
-    if (current <= minimum) return 'critical';
-    if (current <= minimum * 1.5) return 'low';
-    if (current >= maximum * 0.9) return 'high';
-    return 'normal';
-  };
-
-  const getStockColor = (status) => {
-    switch (status) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
-      case 'low': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'high': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'normal': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      
+      const data = await response.json();
+      setInventoryItems(data.results || data);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching inventory items:', error);
+      setError('Failed to load inventory items. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const categories = [...new Set(inventory.map(item => item.category))];
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/categories/`, {
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setCategories(data.results || data);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
-  const filteredInventory = inventory
+  // Fetch recent stock transactions
+  const fetchStockTransactions = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/stock/transactions/`, {
+        headers: getHeaders(),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStockTransactions((data.results || data).slice(0, 5)); // Get last 5 transactions
+      }
+    } catch (error) {
+      console.error('Error fetching stock transactions:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchInventoryItems();
+    fetchCategories();
+    fetchStockTransactions();
+  }, []);
+
+  // Filter and sort items
+  const filteredAndSortedItems = inventoryItems
     .filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.location.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
-      const status = getStockStatus(item.stock, item.minStock, item.maxStock);
-      const matchesStatus = filterStatus === 'all' || status === filterStatus;
-      return matchesSearch && matchesCategory && matchesStatus;
+                           item.item_code.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || 
+                             item.category?.id === parseInt(selectedCategory);
+      return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'stock':
-          return b.stock - a.stock;
-        case 'value':
-          return b.totalValue - a.totalValue;
-        case 'category':
-          return a.category.localeCompare(b.category);
-        default:
-          return 0;
+      let aValue = a[sortBy];
+      let bValue = b[sortBy];
+      
+      // Handle nested category name
+      if (sortBy === 'category') {
+        aValue = a.category?.name || '';
+        bValue = b.category?.name || '';
+      }
+      
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
       }
     });
 
-  const totalValue = inventory.reduce((sum, item) => sum + item.totalValue, 0);
-  const criticalItems = inventory.filter(item => getStockStatus(item.stock, item.minStock, item.maxStock) === 'critical').length;
-  const lowStockItems = inventory.filter(item => getStockStatus(item.stock, item.minStock, item.maxStock) === 'low').length;
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredAndSortedItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAndSortedItems.length / itemsPerPage);
 
-  const updateStock = (itemId, newStock) => {
-    setInventory(prev => prev.map(item => 
-      item.id === itemId ? { 
-        ...item, 
-        stock: newStock, 
-        totalValue: newStock * item.unitPrice,
-        lastUpdated: new Date().toISOString().split('T')[0] 
-      } : item
-    ));
+  // Get stock status
+  const getStockStatus = (item) => {
+    if (item.stock <= 0) {
+      return { status: 'Out of Stock', color: 'text-red-600', bg: 'bg-red-100', icon: '❌' };
+    } else if (item.stock <= item.min_stock) {
+      return { status: 'Low Stock', color: 'text-yellow-600', bg: 'bg-yellow-100', icon: '⚠️' };
+    } else if (item.stock >= item.max_stock) {
+      return { status: 'Overstock', color: 'text-purple-600', bg: 'bg-purple-100', icon: '📦' };
+    } else {
+      return { status: 'In Stock', color: 'text-green-600', bg: 'bg-green-100', icon: '✅' };
+    }
   };
+
+  // Calculate statistics
+  const stats = {
+    totalItems: inventoryItems.length,
+    inStock: inventoryItems.filter(item => item.stock > item.min_stock).length,
+    lowStock: inventoryItems.filter(item => item.stock <= item.min_stock && item.stock > 0).length,
+    outOfStock: inventoryItems.filter(item => item.stock <= 0).length,
+    totalValue: inventoryItems.reduce((sum, item) => sum + (item.stock * parseFloat(item.unit_price || 0)), 0)
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-red-800">Error</h3>
+            <div className="mt-2 text-sm text-red-700">
+              <p>{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Stock Balance</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Monitor and manage inventory stock levels across all categories
-          </p>
-        </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="mt-4 sm:mt-0 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200 flex items-center"
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          Add Item
-        </button>
+      <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl shadow-lg p-8 text-white">
+        <h1 className="text-3xl font-bold mb-2">Stock Balance</h1>
+        <p className="text-green-100 text-lg">
+          Monitor inventory levels and stock movements
+        </p>
       </div>
 
-      {/* Summary Cards */}
-   
-
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Search items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Items</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalItems}</p>
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="block w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Categories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">In Stock</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.inStock}</p>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Stock Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="block w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="critical">Critical</option>
-              <option value="low">Low Stock</option>
-              <option value="normal">Normal</option>
-              <option value="high">High Stock</option>
-            </select>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Low Stock</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.lowStock}</p>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="block w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="name">Name</option>
-              <option value="stock">Stock Level</option>
-              <option value="value">Total Value</option>
-              <option value="category">Category</option>
-            </select>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.outOfStock}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Value</p>
+              <p className="text-2xl font-bold text-gray-900">${stats.totalValue.toFixed(2)}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Inventory Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {/* Search and Filter */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search items by name or code..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Categories</option>
+            {categories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+          <div className="text-sm text-gray-500 flex items-center">
+            {filteredAndSortedItems.length} item{filteredAndSortedItems.length !== 1 ? 's' : ''} found
+          </div>
+        </div>
+      </div>
+
+      {/* Stock Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Inventory Items</h3>
+        </div>
+        
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Item Details
+                <th 
+                  onClick={() => handleSort('item_code')}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center">
+                    Item Code
+                    {sortBy === 'item_code' && (
+                      <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('name')}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center">
+                    Name
+                    {sortBy === 'name' && (
+                      <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('category')}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center">
+                    Category
+                    {sortBy === 'category' && (
+                      <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('stock')}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center">
+                    Current Stock
+                    {sortBy === 'stock' && (
+                      <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Category & Location
+                  Min/Max
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stock Level
+                  Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Value
+                  Location
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Updated
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                <th 
+                  onClick={() => handleSort('unit_price')}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center">
+                    Unit Price
+                    {sortBy === 'unit_price' && (
+                      <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredInventory.map((item) => {
-                const status = getStockStatus(item.stock, item.minStock, item.maxStock);
+              {currentItems.map((item) => {
+                const stockInfo = getStockStatus(item);
                 return (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                        <div className="text-sm text-gray-500">{item.id}</div>
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {item.item_code}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{item.category}</div>
-                      <div className="text-sm text-gray-500">{item.location}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {item.stock} {item.unit}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Min: {item.minStock} | Max: {item.maxStock}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        ${item.totalValue.toLocaleString()}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        @${item.unitPrice} per {item.unit}
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {item.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(item.lastUpdated).toLocaleDateString()}
+                      {item.category?.name || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => setSelectedItem(item)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => updateStock(item.id, item.stock + 10)}
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          +10
-                        </button>
-                        <button
-                          onClick={() => updateStock(item.id, Math.max(0, item.stock - 10))}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          -10
-                        </button>
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className="font-medium">{item.stock}</span> {item.unit}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.min_stock} / {item.max_stock}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stockInfo.bg} ${stockInfo.color}`}>
+                        <span className="mr-1">{stockInfo.icon}</span>
+                        {stockInfo.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.location}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${parseFloat(item.unit_price || 0).toFixed(2)}
                     </td>
                   </tr>
                 );
@@ -339,108 +421,90 @@ const StockBalance = () => {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Results Count */}
-      <div className="text-sm text-gray-500">
-        Showing {filteredInventory.length} of {inventory.length} items
-      </div>
-
-      {/* Add Item Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-            <h3 className="text-lg font-semibold mb-4">Receive Item in Stock</h3>
-            <form
-              onSubmit={e => {
-                e.preventDefault();
-                const form = e.target;
-                const newItem = {
-                  id: form.id.value,
-                  name: form.name.value,
-                  category: form.category.value,
-                  stock: parseInt(form.stock.value, 10),
-                  minStock: parseInt(form.minStock.value, 10),
-                  maxStock: parseInt(form.maxStock.value, 10),
-                  unit: form.unit.value,
-                  location: form.location.value,
-                  supplier: form.supplier.value,
-                  unitPrice: parseFloat(form.unitPrice.value),
-                  totalValue: parseFloat(form.unitPrice.value) * parseInt(form.stock.value, 10),
-                  lastUpdated: new Date().toISOString().split('T')[0],
-                  expiryDate: form.expiryDate.value || null
-                };
-                setInventory(prev => [...prev, newItem]);
-                setShowAddModal(false);
-              }}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Item ID</label>
-                  <input name="id" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <input name="name" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select name="category" required className="w-full border border-gray-300 rounded-md px-3 py-2">
-                    <option value="" disabled selected>Select category</option>
-                    {categories.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
-                  <input name="stock" type="number" min="0" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
-                  <input name="minStock" type="number" min="0" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Stock</label>
-                  <input name="maxStock" type="number" min="0" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                  <input name="unit" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <input name="location" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                  <input name="supplier" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price</label>
-                  <input name="unitPrice" type="number" min="0" step="0.01" required className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                  <input name="expiryDate" type="date" className="w-full border border-gray-300 rounded-md px-3 py-2" />
-                </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
+                <span className="font-medium">{Math.min(indexOfLastItem, filteredAndSortedItems.length)}</span> of{' '}
+                <span className="font-medium">{filteredAndSortedItems.length}</span> results
               </div>
-              <div className="flex justify-end space-x-3 mt-6">
+              <div className="flex space-x-2">
                 <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Cancel
+                  Previous
                 </button>
+                
+                {[...Array(totalPages)].map((_, index) => {
+                  const page = index + 1;
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        currentPage === page
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Receive Item
+                  Next
                 </button>
               </div>
-            </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Recent Transactions */}
+      {stockTransactions.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">Recent Stock Transactions</h3>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {stockTransactions.map((transaction, index) => (
+                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-3 ${
+                      transaction.transaction_type === 'receive' ? 'bg-green-500' :
+                      transaction.transaction_type === 'issue' ? 'bg-red-500' : 'bg-yellow-500'
+                    }`}></div>
+                    <div>
+                      <p className="font-medium text-gray-900">{transaction.item?.name || 'Unknown Item'}</p>
+                      <p className="text-sm text-gray-500">
+                        {transaction.transaction_type === 'receive' ? 'Received' :
+                         transaction.transaction_type === 'issue' ? 'Issued' : 'Adjusted'} 
+                        {' '}{Math.abs(transaction.quantity)} units
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">
+                      {new Date(transaction.date).toLocaleDateString()}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      {transaction.performed_by?.username || 'System'}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
