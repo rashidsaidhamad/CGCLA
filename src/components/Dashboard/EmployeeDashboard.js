@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import Overview from './Overview';
 import Requesters from './Requesters';
 import Reports from './Reports';
-import Settings from './Settings';
 import StockBalance from './StockBalance';
 
 const EmployeeDashboard = ({ user, onLogout }) => {
@@ -11,13 +9,6 @@ const EmployeeDashboard = ({ user, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const menuItems = [
-    { 
-      id: 'overview', 
-      name: 'Overview', 
-      icon: '🏠', 
-      path: '/dashboard',
-      description: 'Dashboard overview and statistics'
-    },
     { 
       id: 'requesters', 
       name: 'Requesters', 
@@ -45,13 +36,6 @@ const EmployeeDashboard = ({ user, onLogout }) => {
       icon: '🚚',
       path: '/dashboard/suppliers',
       description: 'Goods Receiving Note & Supplier Info'
-    },
-    { 
-      id: 'settings', 
-      name: 'Settings', 
-      icon: '⚙️', 
-      path: '/dashboard/settings',
-      description: 'System settings and preferences'
     }
   ];
 
@@ -190,13 +174,12 @@ const EmployeeDashboard = ({ user, onLogout }) => {
         <main className="flex-1 overflow-y-auto bg-gray-50">
           <div className="p-6">
             <Routes>
-              <Route path="/" element={<Overview />} />
+              <Route path="/" element={<Navigate to="/dashboard/requesters" replace />} />
               <Route path="/requesters" element={<Requesters />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/stock-balance" element={<StockBalance />} />
               <Route path="/suppliers" element={React.createElement(require('./SuppliersPage').default)} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard/requesters" replace />} />
             </Routes>
           </div>
         </main>

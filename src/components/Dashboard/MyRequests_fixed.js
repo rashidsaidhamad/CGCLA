@@ -6,6 +6,9 @@ const MyRequests = ({ user }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   useEffect(() => {
     fetchMyRequests();
@@ -73,12 +76,79 @@ const MyRequests = ({ user }) => {
     ]);
   };
 
-  // Filter requests based on status and search term
+  // Helper function to get date range based on filter
+  const getDateRange = (filter) => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    switch (filter) {
+      case 'thisWeek': {
+        const startOfWeek = new Date(startOfDay);
+        startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        return { start: startOfWeek, end: endOfWeek };
+      }
+      case 'thisMonth': {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
+        return { start: startOfMonth, end: endOfMonth };
+      }
+      case 'lastWeek': {
+        const startOfLastWeek = new Date(startOfDay);
+        startOfLastWeek.setDate(startOfDay.getDate() - startOfDay.getDay() - 7);
+        const endOfLastWeek = new Date(startOfLastWeek);
+        endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
+        endOfLastWeek.setHours(23, 59, 59, 999);
+        return { start: startOfLastWeek, end: endOfLastWeek };
+      }
+      case 'lastMonth': {
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        endOfLastMonth.setHours(23, 59, 59, 999);
+        return { start: startOfLastMonth, end: endOfLastMonth };
+      }
+      case 'custom': {
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          return { start, end };
+        }
+        return null;
+      }
+      default:
+        return null;
+    }
+  };
+
+  // Check if a request date falls within the selected time range
+  const isWithinDateRange = (requestDate, filter) => {
+    if (filter === 'all') return true;
+    
+    const dateRange = getDateRange(filter);
+    if (!dateRange) return true;
+    
+    const reqDate = new Date(requestDate);
+    return reqDate >= dateRange.start && reqDate <= dateRange.end;
+  };
+
+  // Clear time filters
+  const clearTimeFilters = () => {
+    setTimeFilter('all');
+    setCustomStartDate('');
+    setCustomEndDate('');
+  };
+
+  // Filter requests based on status, search term, and date range
   const filteredRequests = requests.filter(request => {
     const matchesStatus = filterStatus === 'all' || request.status.toLowerCase() === filterStatus;
     const matchesSearch = request.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          request.id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+    const matchesDateRange = isWithinDateRange(request.requestDate, timeFilter);
+    return matchesStatus && matchesSearch && matchesDateRange;
   });
 
   const getStatusColor = (status) => {
@@ -175,30 +245,139 @@ const MyRequests = ({ user }) => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div className="flex space-x-4">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="processing">Processing</option>
-              <option value="delivered">Delivered</option>
-              <option value="rejected">Rejected</option>
-            </select>
+        <div className="space-y-4">
+          {/* First row - Status and Time filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="processing">Processing</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+
+              {/* Time Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
+                <select
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Time</option>
+                  <option value="thisWeek">This Week</option>
+                  <option value="lastWeek">Last Week</option>
+                  <option value="thisMonth">This Month</option>
+                  <option value="lastMonth">Last Month</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <input
+                type="text"
+                placeholder="Search requests..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
-          <div className="flex items-center">
-            <input
-              type="text"
-              placeholder="Search requests..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+
+          {/* Custom Date Range */}
+          {timeFilter === 'custom' && (
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Active Filters Display */}
+          {(filterStatus !== 'all' || timeFilter !== 'all' || searchTerm) && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200">
+              <span className="text-sm font-medium text-gray-700">Active filters:</span>
+              
+              {filterStatus !== 'all' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  Status: {filterStatus}
+                  <button
+                    onClick={() => setFilterStatus('all')}
+                    className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-blue-600 hover:bg-blue-200"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              
+              {timeFilter !== 'all' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  Time: {timeFilter === 'thisWeek' ? 'This Week' : 
+                          timeFilter === 'lastWeek' ? 'Last Week' :
+                          timeFilter === 'thisMonth' ? 'This Month' :
+                          timeFilter === 'lastMonth' ? 'Last Month' :
+                          timeFilter === 'custom' ? 'Custom Range' : timeFilter}
+                  <button
+                    onClick={clearTimeFilters}
+                    className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-green-600 hover:bg-green-200"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              
+              {searchTerm && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  Search: "{searchTerm}"
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-purple-600 hover:bg-purple-200"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              
+              <button
+                onClick={() => {
+                  setFilterStatus('all');
+                  setSearchTerm('');
+                  clearTimeFilters();
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

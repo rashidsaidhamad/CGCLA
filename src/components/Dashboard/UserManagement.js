@@ -1,271 +1,20 @@
 import React, { useState, useEffect } from 'react';
 
-const UserManagement = ({ user }) => {
-  const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState('all');
-  const [filterDepartment, setFilterDepartment] = useState('all');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [usersPerPage] = useState(10);
+// Modal Component outside main component to prevent re-creation on each render
+const UserModal = ({ 
+  showAddModal, 
+  editingUser, 
+  newUser, 
+  setNewUser, 
+  roles, 
+  departments, 
+  resetForm, 
+  handleAddUser, 
+  handleUpdateUser 
+}) => {
+  if (!showAddModal) return null;
 
-  const [newUser, setNewUser] = useState({
-    username: '',
-    email: '',
-    first_name: '',
-    last_name: '',
-    role: '',
-    department: '',
-    is_active: true,
-    password: '',
-    confirmPassword: ''
-  });
-
-  // API configuration
-  const API_BASE = 'http://127.0.0.1:8000/api';
-  const getAuthToken = () => localStorage.getItem('access_token');
-  const getHeaders = () => ({
-    'Authorization': `Bearer ${getAuthToken()}`,
-    'Content-Type': 'application/json',
-  });
-
-  // Fetch functions
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`${API_BASE}/auth/users/`, {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setUsers(data.results || data);
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      setError('Failed to load users. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchRoles = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/auth/roles/`, {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setRoles(data.results || data);
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/auth/departments/`, {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setDepartments(data.results || data);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-    fetchRoles();
-    fetchDepartments();
-  }, []);
-
-  // Filter and pagination logic
-  const filteredUsers = users.filter(user => {
-    const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
-    const matchesSearch = fullName.includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.username.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || user.role?.name === filterRole;
-    const matchesDepartment = filterDepartment === 'all' || user.department?.name === filterDepartment;
-    return matchesSearch && matchesRole && matchesDepartment;
-  });
-
-  // Pagination
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-
-  // CRUD Operations
-  const handleAddUser = async () => {
-    if (newUser.password !== newUser.confirmPassword) {
-      alert('Passwords do not match!');
-      return;
-    }
-
-    try {
-      const userData = {
-        username: newUser.username,
-        email: newUser.email,
-        first_name: newUser.first_name,
-        last_name: newUser.last_name,
-        password: newUser.password,
-        role: newUser.role,
-        department: newUser.department,
-        is_active: newUser.is_active
-      };
-
-      const response = await fetch(`${API_BASE}/auth/users/`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(Object.values(errorData).flat().join(', '));
-      }
-
-      await fetchUsers();
-      resetForm();
-      alert('User created successfully!');
-    } catch (error) {
-      console.error('Error creating user:', error);
-      alert(`Error creating user: ${error.message}`);
-    }
-  };
-
-  const handleUpdateUser = async () => {
-    try {
-      const userData = {
-        username: newUser.username,
-        email: newUser.email,
-        first_name: newUser.first_name,
-        last_name: newUser.last_name,
-        role: newUser.role,
-        department: newUser.department,
-        is_active: newUser.is_active
-      };
-
-      if (newUser.password && newUser.password === newUser.confirmPassword) {
-        userData.password = newUser.password;
-      } else if (newUser.password && newUser.password !== newUser.confirmPassword) {
-        alert('Passwords do not match!');
-        return;
-      }
-
-      const response = await fetch(`${API_BASE}/auth/users/${editingUser.id}/update/`, {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(Object.values(errorData).flat().join(', '));
-      }
-
-      await fetchUsers();
-      resetForm();
-      alert('User updated successfully!');
-    } catch (error) {
-      console.error('Error updating user:', error);
-      alert(`Error updating user: ${error.message}`);
-    }
-  };
-
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/auth/users/${userId}/delete/`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      await fetchUsers();
-      alert('User deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert(`Error deleting user: ${error.message}`);
-    }
-  };
-
-  const handleEditUser = (userToEdit) => {
-    setEditingUser(userToEdit);
-    setNewUser({
-      username: userToEdit.username,
-      email: userToEdit.email,
-      first_name: userToEdit.first_name,
-      last_name: userToEdit.last_name,
-      role: userToEdit.role?.id || '',
-      department: userToEdit.department?.id || '',
-      is_active: userToEdit.is_active,
-      password: '',
-      confirmPassword: ''
-    });
-    setShowAddModal(true);
-  };
-
-  const resetForm = () => {
-    setNewUser({
-      username: '',
-      email: '',
-      first_name: '',
-      last_name: '',
-      role: '',
-      department: '',
-      is_active: true,
-      password: '',
-      confirmPassword: ''
-    });
-    setEditingUser(null);
-    setShowAddModal(false);
-  };
-
-  // Utility functions
-  const getRoleColor = (roleName) => {
-    switch (roleName?.toLowerCase()) {
-      case 'admin': return 'bg-red-100 text-red-800 border-red-200';
-      case 'chief': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'storekeeper': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'requester': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getStatusColor = (isActive) => {
-    return isActive 
-      ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
-      : 'bg-rose-100 text-rose-800 border-rose-200';
-  };
-
-  // Modal Component
-  const UserModal = () => (
+  return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="p-6 border-b border-gray-200">
@@ -440,6 +189,271 @@ const UserManagement = ({ user }) => {
       </div>
     </div>
   );
+};
+
+const UserManagement = ({ user }) => {
+  const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterDepartment, setFilterDepartment] = useState('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [usersPerPage] = useState(10);
+
+  const [newUser, setNewUser] = useState({
+    username: '',
+    email: '',
+    first_name: '',
+    last_name: '',
+    role: '',
+    department: '',
+    is_active: true,
+    password: '',
+    confirmPassword: ''
+  });
+
+  // API configuration
+  const API_BASE = 'http://127.0.0.1:8000/api';
+  const getAuthToken = () => localStorage.getItem('access_token');
+  const getHeaders = () => ({
+    'Authorization': `Bearer ${getAuthToken()}`,
+    'Content-Type': 'application/json',
+  });
+
+  // Fetch functions
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE}/auth/users/`, {
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setUsers(data.results || data);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Failed to load users. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/roles/`, {
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setRoles(data.results || data);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/departments/`, {
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setDepartments(data.results || data);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+    fetchRoles();
+    fetchDepartments();
+  }, []);
+
+  // Filter and pagination logic
+  const filteredUsers = users.filter(user => {
+    const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
+    const matchesSearch = fullName.includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.username.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === 'all' || user.role?.name === filterRole;
+    const matchesDepartment = filterDepartment === 'all' || user.department?.name === filterDepartment;
+    return matchesSearch && matchesRole && matchesDepartment;
+  });
+
+  // Pagination
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+
+  // CRUD Operations
+  const handleAddUser = async () => {
+    if (newUser.password !== newUser.confirmPassword) {
+      alert('Passwords do not match!');
+      return;
+    }
+
+    try {
+      const userData = {
+        username: newUser.username,
+        email: newUser.email,
+        first_name: newUser.first_name,
+        last_name: newUser.last_name,
+        password: newUser.password,
+        role_id: newUser.role || null,
+        department_id: newUser.department || null,
+        is_active: newUser.is_active
+      };
+
+      const response = await fetch(`${API_BASE}/auth/users/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(Object.values(errorData).flat().join(', '));
+      }
+
+      await fetchUsers();
+      resetForm();
+      alert('User created successfully!');
+    } catch (error) {
+      console.error('Error creating user:', error);
+      alert(`Error creating user: ${error.message}`);
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    try {
+      const userData = {
+        username: newUser.username,
+        email: newUser.email,
+        first_name: newUser.first_name,
+        last_name: newUser.last_name,
+        role_id: newUser.role || null,
+        department_id: newUser.department || null,
+        is_active: newUser.is_active
+      };
+
+      if (newUser.password && newUser.password === newUser.confirmPassword) {
+        userData.password = newUser.password;
+      } else if (newUser.password && newUser.password !== newUser.confirmPassword) {
+        alert('Passwords do not match!');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/auth/users/${editingUser.id}/update/`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(Object.values(errorData).flat().join(', '));
+      }
+
+      await fetchUsers();
+      resetForm();
+      alert('User updated successfully!');
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert(`Error updating user: ${error.message}`);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/users/${userId}/delete/`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      await fetchUsers();
+      alert('User deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert(`Error deleting user: ${error.message}`);
+    }
+  };
+
+  const handleEditUser = (userToEdit) => {
+    setEditingUser(userToEdit);
+    setNewUser({
+      username: userToEdit.username,
+      email: userToEdit.email,
+      first_name: userToEdit.first_name,
+      last_name: userToEdit.last_name,
+      role: userToEdit.role?.id || '',
+      department: userToEdit.department?.id || '',
+      is_active: userToEdit.is_active,
+      password: '',
+      confirmPassword: ''
+    });
+    setShowAddModal(true);
+  };
+
+  const resetForm = () => {
+    setNewUser({
+      username: '',
+      email: '',
+      first_name: '',
+      last_name: '',
+      role: '',
+      department: '',
+      is_active: true,
+      password: '',
+      confirmPassword: ''
+    });
+    setEditingUser(null);
+    setShowAddModal(false);
+  };
+
+  // Utility functions
+  const getRoleColor = (roleName) => {
+    switch (roleName?.toLowerCase()) {
+      case 'admin': return 'bg-red-100 text-red-800 border-red-200';
+      case 'chief': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'storekeeper': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'requester': return 'bg-green-100 text-green-800 border-green-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusColor = (isActive) => {
+    return isActive 
+      ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+      : 'bg-rose-100 text-rose-800 border-rose-200';
+  };
 
   if (isLoading) {
     return (
@@ -748,7 +762,17 @@ const UserManagement = ({ user }) => {
       </div>
 
       {/* Modal */}
-      {showAddModal && <UserModal />}
+      <UserModal 
+        showAddModal={showAddModal}
+        editingUser={editingUser}
+        newUser={newUser}
+        setNewUser={setNewUser}
+        roles={roles}
+        departments={departments}
+        resetForm={resetForm}
+        handleAddUser={handleAddUser}
+        handleUpdateUser={handleUpdateUser}
+      />
     </div>
   );
 };

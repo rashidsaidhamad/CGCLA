@@ -5,13 +5,16 @@ const Reports = () => {
     inventoryReport: null,
     issuedReport: null
   });
-  const [selectedReport, setSelectedReport] = useState('inventory');
+  const [selectedReport, setSelectedReport] = useState('issued');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState({
     startDate: '',
     endDate: ''
   });
+  const [selectedTimeFilter, setSelectedTimeFilter] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedWeek, setSelectedWeek] = useState('');
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -20,6 +23,106 @@ const Reports = () => {
     'Authorization': `Bearer ${getAuthToken()}`,
     'Content-Type': 'application/json',
   });
+
+  // Generate month options for the current year
+  const getMonthOptions = () => {
+    const months = [
+      { value: '1', label: 'January' },
+      { value: '2', label: 'February' },
+      { value: '3', label: 'March' },
+      { value: '4', label: 'April' },
+      { value: '5', label: 'May' },
+      { value: '6', label: 'June' },
+      { value: '7', label: 'July' },
+      { value: '8', label: 'August' },
+      { value: '9', label: 'September' },
+      { value: '10', label: 'October' },
+      { value: '11', label: 'November' },
+      { value: '12', label: 'December' }
+    ];
+    return months;
+  };
+
+  // Generate week options for the current year
+  const getWeekOptions = () => {
+    const weeks = [];
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    
+    // Get the first day of the year
+    const firstDay = new Date(currentYear, 0, 1);
+    const firstWeekStart = new Date(firstDay);
+    
+    // Adjust to start on Monday
+    const dayOfWeek = firstDay.getDay();
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    firstWeekStart.setDate(firstDay.getDate() + daysToMonday);
+    
+    for (let week = 1; week <= 52; week++) {
+      const weekStart = new Date(firstWeekStart);
+      weekStart.setDate(firstWeekStart.getDate() + (week - 1) * 7);
+      
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      // Only include weeks that haven't passed current date + some future weeks
+      if (weekStart <= new Date(currentDate.getTime() + (14 * 24 * 60 * 60 * 1000))) {
+        weeks.push({
+          value: week.toString(),
+          label: `Week ${week} (${weekStart.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })})`
+        });
+      }
+    }
+    return weeks;
+  };
+
+  // Filter data based on selected time filter
+  const filterDataByTime = (data) => {
+    if (!data || selectedTimeFilter === 'all') return data;
+
+    const now = new Date();
+    let startDate, endDate;
+
+    if (selectedTimeFilter === 'month' && selectedMonth) {
+      const year = now.getFullYear();
+      startDate = new Date(year, parseInt(selectedMonth) - 1, 1);
+      endDate = new Date(year, parseInt(selectedMonth), 0);
+    } else if (selectedTimeFilter === 'week' && selectedWeek) {
+      const year = now.getFullYear();
+      const firstDay = new Date(year, 0, 1);
+      const firstWeekStart = new Date(firstDay);
+      
+      const dayOfWeek = firstDay.getDay();
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      firstWeekStart.setDate(firstDay.getDate() + daysToMonday);
+      
+      startDate = new Date(firstWeekStart);
+      startDate.setDate(firstWeekStart.getDate() + (parseInt(selectedWeek) - 1) * 7);
+      
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+    }
+
+    if (startDate && endDate) {
+      // Filter based on the data structure
+      if (data.items) {
+        return {
+          ...data,
+          items: data.items.filter(item => {
+            const itemDate = new Date(item.created_at || item.date_requested || item.date);
+            return itemDate >= startDate && itemDate <= endDate;
+          })
+        };
+      } else if (Array.isArray(data)) {
+        return data.filter(item => {
+          const itemDate = new Date(item.created_at || item.date_requested || item.date);
+          return itemDate >= startDate && itemDate <= endDate;
+        });
+      }
+    }
+
+    return data;
+  };
 
   // Fetch specific report
   const fetchReport = async (reportType) => {
@@ -70,34 +173,61 @@ const Reports = () => {
 
   // Export report as CSV
   const exportToCSV = (data, filename) => {
-    if (!data || !Array.isArray(data) || data.length === 0) {
+    if (!data) {
       alert('No data to export');
       return;
     }
 
-    const headers = Object.keys(data[0]);
+    let csvData = [];
+    let csvFilename = filename;
+
+    // Handle different data structures
+    if (selectedReport === 'issued') {
+      // For issued reports, extract the items array
+      csvData = data.items || data.requests || data || [];
+      csvFilename = 'issued_items_report';
+    } else {
+      // For other reports
+      csvData = Array.isArray(data) ? data : (data.items || []);
+    }
+
+    if (!Array.isArray(csvData) || csvData.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    // Create CSV headers based on the first object's keys
+    const headers = Object.keys(csvData[0]);
     const csvContent = [
       headers.join(','),
-      ...data.map(row => headers.map(header => row[header] || '').join(','))
+      ...csvData.map(row => 
+        headers.map(header => {
+          let value = row[header] || '';
+          // Handle nested objects or arrays
+          if (typeof value === 'object' && value !== null) {
+            value = JSON.stringify(value).replace(/,/g, ';');
+          }
+          // Escape commas and quotes in CSV
+          return `"${String(value).replace(/"/g, '""')}"`;
+        }).join(',')
+      )
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${csvFilename}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
-  // Print report
-  const printReport = () => {
-    window.print();
-  };
-
-  // Get current report data
+  // Get current report data with filtering applied
   const getCurrentReportData = () => {
-    return reportData[`${selectedReport}Report`];
+    const rawData = reportData[`${selectedReport}Report`];
+    return filterDataByTime(rawData);
   };
 
   // Render report content based on type
@@ -344,8 +474,8 @@ const Reports = () => {
       {/* Report Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
-          {/* Report Type Selector */}
-          <div className="flex space-x-4">
+          {/* Report Type and Filters */}
+          <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Report Type
@@ -355,10 +485,71 @@ const Reports = () => {
                 onChange={(e) => handleReportChange(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
-                <option value="inventory">Inventory Report</option>
                 <option value="issued">Issued Report</option>
               </select>
             </div>
+
+            {/* Time Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Time Filter
+              </label>
+              <select
+                value={selectedTimeFilter}
+                onChange={(e) => {
+                  setSelectedTimeFilter(e.target.value);
+                  if (e.target.value !== 'month') setSelectedMonth('');
+                  if (e.target.value !== 'week') setSelectedWeek('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="all">All Time</option>
+                <option value="month">By Month</option>
+                <option value="week">By Week</option>
+              </select>
+            </div>
+
+            {/* Month Filter */}
+            {selectedTimeFilter === 'month' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Month
+                </label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">Choose Month</option>
+                  {getMonthOptions().map(month => (
+                    <option key={month.value} value={month.value}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Week Filter */}
+            {selectedTimeFilter === 'week' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Week
+                </label>
+                <select
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[250px]"
+                >
+                  <option value="">Choose Week</option>
+                  {getWeekOptions().map(week => (
+                    <option key={week.value} value={week.value}>
+                      {week.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -384,17 +575,6 @@ const Reports = () => {
               </svg>
               Export CSV
             </button>
-            
-            <button
-              onClick={printReport}
-              disabled={!getCurrentReportData()}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
-            >
-              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-              </svg>
-              Print
-            </button>
           </div>
         </div>
       </div>
@@ -402,12 +582,41 @@ const Reports = () => {
       {/* Report Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 capitalize">
-            {selectedReport.replace(/([A-Z])/g, ' $1').trim()} Report
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 capitalize">
+                {selectedReport.replace(/([A-Z])/g, ' $1').trim()} Report
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+                {selectedTimeFilter !== 'all' && (
+                  <span className="ml-2">
+                    • Filtered by {selectedTimeFilter === 'month' ? `${getMonthOptions().find(m => m.value === selectedMonth)?.label || 'Month'}` : selectedTimeFilter === 'week' ? `Week ${selectedWeek}` : selectedTimeFilter}
+                  </span>
+                )}
+              </p>
+            </div>
+            {selectedTimeFilter !== 'all' && (
+              <div className="flex items-center space-x-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+                  </svg>
+                  Filtered
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedTimeFilter('all');
+                    setSelectedMonth('');
+                    setSelectedWeek('');
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  Clear Filter
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         
         {renderReportContent()}

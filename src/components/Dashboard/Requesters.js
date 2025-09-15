@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { saveAs } from 'file-saver';
 
 const Requesters = () => {
   const [requests, setRequests] = useState([]);
@@ -6,6 +10,7 @@ const Requesters = () => {
   const [departments, setDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedDateFilter, setSelectedDateFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -159,6 +164,126 @@ const Requesters = () => {
     return item ? item.name : `Item ID: ${itemData}`;
   };
 
+  // Date filtering function
+  const filterByDate = (request) => {
+    if (selectedDateFilter === 'all') return true;
+    
+    const requestDate = new Date(request.created_at);
+    const now = new Date();
+    
+    switch (selectedDateFilter) {
+      case 'week':
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return requestDate >= oneWeekAgo;
+      case 'month':
+        const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        return requestDate >= oneMonthAgo;
+      case 'year':
+        const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        return requestDate >= oneYearAgo;
+      default:
+        return true;
+    }
+  };
+
+  // Export functions
+  const exportToExcel = () => {
+    const exportData = sortedRequests.map(request => {
+      const user = request.requester || request.user;
+      const dept = user?.department || request.department;
+      return {
+        'Request ID': request.id,
+        'Requester': user?.first_name && user?.last_name 
+          ? `${user.first_name} ${user.last_name}` 
+          : user?.username || user?.email || 'Unknown User',
+        'Department': dept?.name || 'Unknown Department',
+        'Item': getItemName(request.item),
+        'Quantity': request.quantity,
+        'Status': request.status.charAt(0).toUpperCase() + request.status.slice(1),
+        'Feedback': request.feedback || '',
+        'Date Submitted': new Date(request.created_at).toLocaleDateString(),
+        'Time Submitted': new Date(request.created_at).toLocaleTimeString()
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Requests');
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `requests_report_${dateStr}.xlsx`);
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text('Requests Report', 20, 20);
+    
+    // Add date
+    doc.setFontSize(12);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 30);
+    
+    // Prepare table data
+    const tableData = sortedRequests.map(request => {
+      const user = request.requester || request.user;
+      const dept = user?.department || request.department;
+      return [
+        request.id,
+        user?.first_name && user?.last_name 
+          ? `${user.first_name} ${user.last_name}` 
+          : user?.username || user?.email || 'Unknown User',
+        dept?.name || 'Unknown Department',
+        getItemName(request.item),
+        request.quantity,
+        request.status.charAt(0).toUpperCase() + request.status.slice(1),
+        new Date(request.created_at).toLocaleDateString()
+      ];
+    });
+
+    // Add table
+    doc.autoTable({
+      head: [['ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Date']],
+      body: tableData,
+      startY: 40,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] }
+    });
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    doc.save(`requests_report_${dateStr}.pdf`);
+  };
+
+  const exportToCSV = () => {
+    const csvData = sortedRequests.map(request => {
+      const user = request.requester || request.user;
+      const dept = user?.department || request.department;
+      return [
+        request.id,
+        user?.first_name && user?.last_name 
+          ? `${user.first_name} ${user.last_name}` 
+          : user?.username || user?.email || 'Unknown User',
+        dept?.name || 'Unknown Department',
+        getItemName(request.item),
+        request.quantity,
+        request.status.charAt(0).toUpperCase() + request.status.slice(1),
+        request.feedback || '',
+        new Date(request.created_at).toLocaleDateString(),
+        new Date(request.created_at).toLocaleTimeString()
+      ];
+    });
+
+    const headers = ['Request ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Feedback', 'Date Submitted', 'Time Submitted'];
+    const csvContent = [headers, ...csvData].map(row => 
+      row.map(field => `"${field}"`).join(',')
+    ).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const dateStr = new Date().toISOString().split('T')[0];
+    saveAs(blob, `requests_report_${dateStr}.csv`);
+  };
+
   // Filter requests
   const filteredRequests = requests.filter(request => {
     const user = request.requester || request.user;
@@ -174,8 +299,9 @@ const Requesters = () => {
                              dept?.id === parseInt(selectedDepartment);
     
     const matchesStatus = selectedStatus === 'all' || request.status === selectedStatus;
+    const matchesDate = filterByDate(request);
     
-    return matchesSearch && matchesDepartment && matchesStatus;
+    return matchesSearch && matchesDepartment && matchesStatus && matchesDate;
   });
 
   // Sort requests by creation date (newest first)
@@ -318,7 +444,7 @@ const Requesters = () => {
 
       {/* Search and Filter */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="relative lg:col-span-2">
             <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -355,6 +481,40 @@ const Requesters = () => {
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
+
+          <select
+            value={selectedDateFilter}
+            onChange={(e) => setSelectedDateFilter(e.target.value)}
+            className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Time</option>
+            <option value="week">Past Week</option>
+            <option value="month">Past Month</option>
+            <option value="year">Past Year</option>
+          </select>
+        </div>
+        
+        {/* Export Buttons */}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            onClick={exportToExcel}
+            className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Export to Excel
+          </button>
+          
+          <button
+            onClick={exportToCSV}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+            Export to CSV
+          </button>
         </div>
         
         <div className="mt-4 text-sm text-gray-500">

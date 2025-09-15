@@ -1,5 +1,88 @@
 import React, { useState, useEffect } from 'react';
 
+// Modal Component outside main component to prevent re-creation on each render
+const DepartmentModal = ({ 
+  showAddModal, 
+  editingDepartment, 
+  newDepartment, 
+  setNewDepartment, 
+  resetForm, 
+  handleAddDepartment, 
+  handleUpdateDepartment 
+}) => {
+  if (!showAddModal) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900">
+              {editingDepartment ? 'Edit Department' : 'Add New Department'}
+            </h3>
+            <button
+              onClick={resetForm}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            editingDepartment ? handleUpdateDepartment() : handleAddDepartment();
+          }}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Department Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={newDepartment.name}
+                onChange={(e) => setNewDepartment({...newDepartment, name: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter department name"
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Description (Optional)
+              </label>
+              <textarea
+                value={newDepartment.description}
+                onChange={(e) => setNewDepartment({...newDepartment, description: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter department description"
+                rows="3"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-6 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                {editingDepartment ? 'Update Department' : 'Add Department'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DepartmentManagement = ({ user }) => {
   const [departments, setDepartments] = useState([]);
   const [users, setUsers] = useState([]);
@@ -169,77 +252,6 @@ const DepartmentManagement = ({ user }) => {
     setEditingDepartment(null);
     setShowAddModal(false);
   };
-
-  // Department Modal Component
-  const DepartmentModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-md w-full shadow-2xl">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900">
-              {editingDepartment ? 'Edit Department' : 'Add New Department'}
-            </h3>
-            <button
-              onClick={resetForm}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            editingDepartment ? handleUpdateDepartment() : handleAddDepartment();
-          }}>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Department Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={newDepartment.name}
-                onChange={(e) => setNewDepartment({...newDepartment, name: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter department name"
-              />
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description (Optional)
-              </label>
-              <textarea
-                value={newDepartment.description}
-                onChange={(e) => setNewDepartment({...newDepartment, description: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter department description"
-                rows="3"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={resetForm}
-                className="px-6 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-              >
-                {editingDepartment ? 'Update Department' : 'Add Department'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
 
   if (isLoading) {
     return (
@@ -413,7 +425,15 @@ const DepartmentManagement = ({ user }) => {
       )}
 
       {/* Modal */}
-      {showAddModal && <DepartmentModal />}
+      <DepartmentModal 
+        showAddModal={showAddModal}
+        editingDepartment={editingDepartment}
+        newDepartment={newDepartment}
+        setNewDepartment={setNewDepartment}
+        resetForm={resetForm}
+        handleAddDepartment={handleAddDepartment}
+        handleUpdateDepartment={handleUpdateDepartment}
+      />
     </div>
   );
 };

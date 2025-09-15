@@ -1,22 +1,57 @@
 
 import React, { useState, useEffect } from 'react';
-import GoodReceivingNote from '../Suppliers/GoodReceivingNote';
 
 const SuppliersDashboard = () => {
-  const [tab, setTab] = useState('suppliers');
+  // Tab state
+  const [activeTab, setActiveTab] = useState('grn-form');
+  
+  // Suppliers state
   const [suppliers, setSuppliers] = useState([]);
-  const [goodsReceivingNotes, setGoodsReceivingNotes] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [suppliersPerPage] = useState(10);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
   const [newSupplier, setNewSupplier] = useState({
     name: '',
     contact_details: '',
     address: ''
   });
+
+  // GRN state
+  const [goodsReceivingNotes, setGoodsReceivingNotes] = useState([]);
+  const [grnForm, setGrnForm] = useState({
+    po_number: '',
+    delivery_number: '',
+    sender_details: '',
+    delivery_method: '',
+    transport: '',
+    date_received: new Date().toISOString().split('T')[0],
+    time_received: '',
+    registration_plate: '',
+    container_seal_no: '',
+    person_delivering: '',
+    storekeeper: '',
+    status: 'draft',
+    items: [
+      {
+        description: '',
+        item_code: '',
+        unit: 'pieces',
+        total_received: '',
+        accepted: '',
+        rejected: 0,
+        amount: 0,
+        rejected_reason: ''
+      }
+    ]
+  });
+  const [isSubmittingGRN, setIsSubmittingGRN] = useState(false);
+
+  // Stock submission state
+  const [selectedGRN, setSelectedGRN] = useState(null);
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [stockSubmissionItems, setStockSubmissionItems] = useState([]);
+
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -29,29 +64,22 @@ const SuppliersDashboard = () => {
   // Fetch suppliers
   const fetchSuppliers = async () => {
     try {
-      setIsLoading(true);
       const response = await fetch(`${API_BASE}/suppliers/suppliers/`, {
         headers: getHeaders(),
       });
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSuppliers(data.results || data || []);
       }
-      
-      const data = await response.json();
-      console.log('Suppliers API response:', data);
-      setSuppliers(data.results || data || []);
-      setError(null);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
-      setError('Failed to load suppliers. Please try again.');
-    } finally {
-      setIsLoading(false);
+      setError('Failed to load suppliers');
     }
   };
 
-  // Fetch goods receiving notes
-  const fetchGoodsReceivingNotes = async () => {
+  // Fetch GRNs
+  const fetchGRNs = async () => {
     try {
       const response = await fetch(`${API_BASE}/suppliers/goods-receiving-notes/`, {
         headers: getHeaders(),
@@ -62,16 +90,19 @@ const SuppliersDashboard = () => {
         setGoodsReceivingNotes(data.results || data || []);
       }
     } catch (error) {
-      console.error('Error fetching goods receiving notes:', error);
+      console.error('Error fetching GRNs:', error);
+      setError('Failed to load GRNs');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchSuppliers();
-    fetchGoodsReceivingNotes();
+    fetchGRNs();
   }, []);
 
-  // Add new supplier
+  // Add supplier
   const handleAddSupplier = async (e) => {
     e.preventDefault();
     try {
@@ -81,61 +112,171 @@ const SuppliersDashboard = () => {
         body: JSON.stringify(newSupplier),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (response.ok) {
+        await fetchSuppliers();
+        setShowAddSupplierModal(false);
+        setNewSupplier({ name: '', contact_details: '', address: '' });
+        alert('Supplier added successfully!');
       }
-
-      await fetchSuppliers();
-      setShowAddModal(false);
-      setNewSupplier({ name: '', contact_details: '', address: '' });
-      alert('Supplier added successfully!');
     } catch (error) {
       console.error('Error adding supplier:', error);
-      alert(`Error adding supplier: ${error.message}`);
+      alert('Error adding supplier');
     }
   };
 
-  // Delete supplier
-  const handleDeleteSupplier = async (supplierId) => {
-    if (!window.confirm('Are you sure you want to delete this supplier?')) {
-      return;
+  // Handle GRN form changes
+  const handleGRNFormChange = (e) => {
+    const { name, value } = e.target;
+    setGrnForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Handle GRN item changes
+  const handleGRNItemChange = (index, field, value) => {
+    setGrnForm(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) => 
+        i === index ? { ...item, [field]: value } : item
+      )
+    }));
+  };
+
+  // Add new GRN item
+  const addGRNItem = () => {
+    setGrnForm(prev => ({
+      ...prev,
+      items: [...prev.items, {
+        description: '',
+        item_code: '',
+        unit: 'pieces',
+        total_received: '',
+        accepted: '',
+        rejected: 0,
+        amount: 0,
+        rejected_reason: ''
+      }]
+    }));
+  };
+
+  // Remove GRN item
+  const removeGRNItem = (index) => {
+    if (grnForm.items.length > 1) {
+      setGrnForm(prev => ({
+        ...prev,
+        items: prev.items.filter((_, i) => i !== index)
+      }));
     }
+  };
+
+  // Submit GRN as draft
+  const handleSubmitGRN = async (e) => {
+    e.preventDefault();
+    setIsSubmittingGRN(true);
 
     try {
-      const response = await fetch(`${API_BASE}/suppliers/suppliers/${supplierId}/delete/`, {
-        method: 'DELETE',
+      const response = await fetch(`${API_BASE}/suppliers/receiving-notes/create/`, {
+        method: 'POST',
         headers: getHeaders(),
+        body: JSON.stringify({ ...grnForm, status: 'draft' }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (response.ok) {
+        alert('GRN created successfully as draft!');
+        
+        // Reset form
+        setGrnForm({
+          po_number: '',
+          delivery_number: '',
+          sender_details: '',
+          delivery_method: '',
+          transport: '',
+          date_received: new Date().toISOString().split('T')[0],
+          time_received: '',
+          registration_plate: '',
+          container_seal_no: '',
+          person_delivering: '',
+          storekeeper: '',
+          status: 'draft',
+          items: [{
+            description: '',
+            item_code: '',
+            unit: 'pieces',
+            total_received: '',
+            accepted: '',
+            rejected: 0,
+            amount: 0,
+            rejected_reason: ''
+          }]
+        });
 
-      await fetchSuppliers();
-      alert('Supplier deleted successfully!');
+        // Refresh GRNs and switch to view tab
+        await fetchGRNs();
+        setActiveTab('view-grns');
+      } else {
+        const errorData = await response.json();
+        alert(`Error creating GRN: ${errorData.error || 'Unknown error'}`);
+      }
     } catch (error) {
-      console.error('Error deleting supplier:', error);
-      alert(`Error deleting supplier: ${error.message}`);
+      console.error('Error creating GRN:', error);
+      alert('Error creating GRN');
+    } finally {
+      setIsSubmittingGRN(false);
     }
   };
 
-  // Filter suppliers
-  const filteredSuppliers = suppliers.filter(supplier =>
-    supplier.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    supplier.contact_details?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    supplier.address?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Prepare stock submission
+  const prepareStockSubmission = (grn) => {
+    setSelectedGRN(grn);
+    const stockItems = grn.items.map(item => ({
+      ...item,
+      stockToAdd: item.accepted || 0,
+      reason: 'GRN Receipt'
+    }));
+    setStockSubmissionItems(stockItems);
+    setShowStockModal(true);
+  };
 
-  // Pagination
-  const indexOfLastSupplier = currentPage * suppliersPerPage;
-  const indexOfFirstSupplier = indexOfLastSupplier - suppliersPerPage;
-  const currentSuppliers = filteredSuppliers.slice(indexOfFirstSupplier, indexOfLastSupplier);
-  const totalPages = Math.ceil(filteredSuppliers.length / suppliersPerPage);
+  // Submit to stock balance
+  const handleSubmitToStock = async () => {
+    try {
+      const stockData = {
+        grn_id: selectedGRN.id,
+        items: stockSubmissionItems.map(item => ({
+          item_code: item.item_code,
+          quantity: item.stockToAdd,
+          unit_price: item.amount / (item.total_received || 1),
+          reason: item.reason
+        }))
+      };
 
-  // Handler to receive submitted note from child
-  const handleNoteSubmit = (note) => {
-    fetchGoodsReceivingNotes();
-    setTab('grn');
+      const response = await fetch(`${API_BASE}/inventory/stock/bulk-update/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(stockData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Stock updated successfully! ${result.updated_count} items processed.`);
+        setShowStockModal(false);
+        await fetchGRNs();
+      } else {
+        const errorData = await response.json();
+        alert(`Error updating stock: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error submitting to stock:', error);
+      alert('Error submitting to stock balance');
+    }
+  };
+
+  // Get status badge style
+  const getStatusBadge = (status) => {
+    const styles = {
+      draft: 'bg-yellow-100 text-yellow-800',
+      approved: 'bg-green-100 text-green-800',
+      processed: 'bg-blue-100 text-blue-800'
+    };
+    return styles[status] || 'bg-gray-100 text-gray-800';
   };
 
   if (isLoading) {
@@ -152,303 +293,400 @@ const SuppliersDashboard = () => {
       <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl shadow-lg p-8 text-white">
         <h1 className="text-3xl font-bold mb-2">Supplier Management</h1>
         <p className="text-purple-100 text-lg">
-          Manage suppliers and goods receiving notes
+          Manage suppliers, create GRNs, and submit to stock balance
         </p>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Suppliers</p>
-              <p className="text-2xl font-bold text-gray-900">{suppliers.length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Goods Receiving Notes</p>
-              <p className="text-2xl font-bold text-gray-900">{goodsReceivingNotes.length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Suppliers</p>
-              <p className="text-2xl font-bold text-gray-900">{suppliers.filter(s => s.name).length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
+      {/* Tab Navigation */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6">
-            <button
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                tab === 'suppliers'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-              onClick={() => setTab('suppliers')}
-            >
-              Suppliers Management
-            </button>
-            <button
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                tab === 'receive'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-              onClick={() => setTab('receive')}
-            >
-              Goods Receiving Note
-            </button>
-            <button
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                tab === 'grn'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-              onClick={() => setTab('grn')}
-            >
-              View GRNs
-            </button>
+            {[
+              { id: 'grn-form', label: 'Create GRN', icon: '📝' },
+              { id: 'view-grns', label: 'View GRNs', icon: '📋' },
+              { id: 'suppliers', label: 'Suppliers', icon: '🏢' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
           </nav>
         </div>
 
         <div className="p-6">
-          {/* Suppliers Management Tab */}
-          {tab === 'suppliers' && (
+          {/* GRN Form Tab */}
+          {activeTab === 'grn-form' && (
             <div className="space-y-6">
-              {/* Search and Add */}
-              <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
-                <div className="relative w-full sm:w-96">
-                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="Search suppliers..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
+              <h2 className="text-xl font-semibold text-gray-900">Create Goods Receiving Note</h2>
+              
+              <form onSubmit={handleSubmitGRN} className="space-y-6">
+                {/* GRN Header Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      PO/LPO Number
+                    </label>
+                    <input
+                      type="text"
+                      name="po_number"
+                      value={grnForm.po_number}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Enter PO/LPO number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Delivery Number
+                    </label>
+                    <input
+                      type="text"
+                      name="delivery_number"
+                      value={grnForm.delivery_number}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Enter delivery number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date Received *
+                    </label>
+                    <input
+                      type="date"
+                      name="date_received"
+                      value={grnForm.date_received}
+                      onChange={handleGRNFormChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Time Received
+                    </label>
+                    <input
+                      type="time"
+                      name="time_received"
+                      value={grnForm.time_received}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sender Details
+                    </label>
+                    <input
+                      type="text"
+                      name="sender_details"
+                      value={grnForm.sender_details}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Sender information"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Delivery Method
+                    </label>
+                    <input
+                      type="text"
+                      name="delivery_method"
+                      value={grnForm.delivery_method}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="e.g., Truck, Van, etc."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Transport
+                    </label>
+                    <input
+                      type="text"
+                      name="transport"
+                      value={grnForm.transport}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Transport details"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Registration Plate
+                    </label>
+                    <input
+                      type="text"
+                      name="registration_plate"
+                      value={grnForm.registration_plate}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Vehicle registration"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Person Delivering
+                    </label>
+                    <input
+                      type="text"
+                      name="person_delivering"
+                      value={grnForm.person_delivering}
+                      onChange={handleGRNFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Delivery person name"
+                    />
+                  </div>
                 </div>
+
+                {/* Items Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Items Received</h3>
+                    <button
+                      type="button"
+                      onClick={addGRNItem}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                    >
+                      + Add Item
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-200 rounded-lg">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item Code</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Received</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Accepted</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rejected</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {grnForm.items.map((item, index) => (
+                          <tr key={index}>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={item.item_code}
+                                onChange={(e) => handleGRNItemChange(index, 'item_code', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                placeholder="Item code"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => handleGRNItemChange(index, 'description', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                placeholder="Description"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <select
+                                value={item.unit}
+                                onChange={(e) => handleGRNItemChange(index, 'unit', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              >
+                                <option value="pieces">Pieces</option>
+                                <option value="kg">Kg</option>
+                                <option value="liters">Liters</option>
+                                <option value="boxes">Boxes</option>
+                                <option value="packs">Packs</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                value={item.total_received}
+                                onChange={(e) => handleGRNItemChange(index, 'total_received', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                value={item.accepted}
+                                onChange={(e) => handleGRNItemChange(index, 'accepted', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                value={item.rejected}
+                                onChange={(e) => handleGRNItemChange(index, 'rejected', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.amount}
+                                onChange={(e) => handleGRNItemChange(index, 'amount', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                placeholder="0.00"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              {grnForm.items.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeGRNItem(index)}
+                                  className="text-red-600 hover:text-red-800 text-sm"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingGRN}
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {isSubmittingGRN ? 'Creating...' : 'Create GRN'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* View GRNs Tab */}
+          {activeTab === 'view-grns' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">Goods Receiving Notes</h2>
                 <button
-                  onClick={() => setShowAddModal(true)}
-                  className="w-full sm:w-auto inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
+                  onClick={() => setActiveTab('grn-form')}
+                  className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                  Add Supplier
+                  + Create New GRN
                 </button>
               </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">Error</h3>
-                      <div className="mt-2 text-sm text-red-700">
-                        <p>{error}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Results count */}
-              <div className="text-sm text-gray-500">
-                {filteredSuppliers.length} supplier{filteredSuppliers.length !== 1 ? 's' : ''} found
-              </div>
-
-              {/* Suppliers List */}
-              {currentSuppliers.length === 0 ? (
+              {goodsReceivingNotes.length === 0 ? (
                 <div className="text-center py-12">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No suppliers found</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {searchTerm ? 'Try adjusting your search criteria.' : 'Get started by adding a new supplier.'}
-                  </p>
+                  <div className="text-gray-400 text-6xl mb-4">📋</div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No GRNs found</h3>
+                  <p className="text-gray-600">Create your first Goods Receiving Note to get started.</p>
                 </div>
               ) : (
-                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Supplier Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Contact Details
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Address
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {currentSuppliers.map((supplier) => (
-                        <tr key={supplier.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10">
-                                <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-center">
-                                  <span className="text-white font-medium text-sm">
-                                    {supplier.name?.[0]?.toUpperCase() || 'S'}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{supplier.name}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900">{supplier.contact_details || 'N/A'}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900">{supplier.address || 'N/A'}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => handleDeleteSupplier(supplier.id)}
-                              className="text-red-600 hover:text-red-900 transition-colors"
-                            >
-                              Delete
-                            </button>
-                          </td>
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO/LPO</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-700">
-                    Showing <span className="font-medium">{indexOfFirstSupplier + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(indexOfLastSupplier, filteredSuppliers.length)}</span> of{' '}
-                    <span className="font-medium">{filteredSuppliers.length}</span> results
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Previous
-                    </button>
-                    
-                    {[...Array(totalPages)].map((_, index) => {
-                      const page = index + 1;
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                            currentPage === page
-                              ? 'bg-purple-600 text-white'
-                              : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                    
-                    <button
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                      className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Next
-                    </button>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {goodsReceivingNotes.map((grn) => (
+                          <tr key={grn.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {grn.po_number || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {grn.sender_details || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {new Date(grn.date_received).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(grn.status || 'draft')}`}>
+                                {(grn.status || 'draft').charAt(0).toUpperCase() + (grn.status || 'draft').slice(1)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {grn.items?.length || 0} items
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                              <button
+                                onClick={() => prepareStockSubmission(grn)}
+                                className="text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1 rounded"
+                              >
+                                Submit to Stock
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Goods Receiving Note Tab */}
-          {tab === 'receive' && (
-            <GoodReceivingNote onSubmitNote={handleNoteSubmit} />
-          )}
+          {/* Suppliers Tab */}
+          {activeTab === 'suppliers' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">Suppliers</h2>
+                <button
+                  onClick={() => setShowAddSupplierModal(true)}
+                  className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  + Add Supplier
+                </button>
+              </div>
 
-          {/* View GRNs Tab */}
-          {tab === 'grn' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Goods Receiving Notes</h2>
-              {goodsReceivingNotes.length === 0 ? (
-                <p className="text-gray-500">No goods receiving notes have been submitted yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="border border-gray-200 px-4 py-2 text-left">PO/LPO No.</th>
-                        <th className="border border-gray-200 px-4 py-2 text-left">Sender</th>
-                        <th className="border border-gray-200 px-4 py-2 text-left">Date</th>
-                        <th className="border border-gray-200 px-4 py-2 text-left">Person Delivering</th>
-                        <th className="border border-gray-200 px-4 py-2 text-left">Storekeeper</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {goodsReceivingNotes.map((note, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="border border-gray-200 px-4 py-2">{note.po_number}</td>
-                          <td className="border border-gray-200 px-4 py-2">{note.sender_details}</td>
-                          <td className="border border-gray-200 px-4 py-2">{note.date_received}</td>
-                          <td className="border border-gray-200 px-4 py-2">{note.person_delivering}</td>
-                          <td className="border border-gray-200 px-4 py-2">{note.storekeeper}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {suppliers.map((supplier) => (
+                  <div key={supplier.id} className="bg-white p-6 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">{supplier.name}</h3>
+                    <p className="text-sm text-gray-600 mb-2">{supplier.contact_details}</p>
+                    <p className="text-sm text-gray-500">{supplier.address}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Add Supplier Modal */}
-      {showAddModal && (
+      {showAddSupplierModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold mb-4">Add New Supplier</h3>
@@ -462,18 +700,18 @@ const SuppliersDashboard = () => {
                   required
                   value={newSupplier.name}
                   onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Contact Details
                 </label>
-                <textarea
+                <input
+                  type="text"
                   value={newSupplier.contact_details}
                   onChange={(e) => setNewSupplier({ ...newSupplier, contact_details: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                 />
               </div>
               <div>
@@ -484,25 +722,127 @@ const SuppliersDashboard = () => {
                   value={newSupplier.address}
                   onChange={(e) => setNewSupplier({ ...newSupplier, address: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                 />
               </div>
               <div className="flex space-x-4 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  onClick={() => setShowAddSupplierModal(false)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700"
                 >
                   Add Supplier
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Submission Modal */}
+      {showStockModal && selectedGRN && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold">Submit to Stock Balance</h3>
+                  <p className="text-green-100">GRN: {selectedGRN.po_number || 'N/A'}</p>
+                </div>
+                <button
+                  onClick={() => setShowStockModal(false)}
+                  className="text-white hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <p className="text-gray-600">
+                Review and adjust the quantities to be added to stock balance. Only accepted items will be processed.
+              </p>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full border border-gray-200 rounded-lg">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item Code</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Accepted Qty</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stock to Add</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {stockSubmissionItems.map((item, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-2 text-sm font-medium">{item.item_code}</td>
+                        <td className="px-4 py-2 text-sm">{item.description}</td>
+                        <td className="px-4 py-2 text-sm">{item.accepted}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            value={item.stockToAdd}
+                            onChange={(e) => {
+                              const newItems = [...stockSubmissionItems];
+                              newItems[index].stockToAdd = parseInt(e.target.value) || 0;
+                              setStockSubmissionItems(newItems);
+                            }}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={(item.amount / (item.total_received || 1)).toFixed(2)}
+                            className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                            readOnly
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={item.reason}
+                            onChange={(e) => {
+                              const newItems = [...stockSubmissionItems];
+                              newItems[index].reason = e.target.value;
+                              setStockSubmissionItems(newItems);
+                            }}
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end space-x-4 pt-6 border-t">
+                <button
+                  onClick={() => setShowStockModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitToStock}
+                  className="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                >
+                  Submit to Stock Balance
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
