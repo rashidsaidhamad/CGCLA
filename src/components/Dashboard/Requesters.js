@@ -83,14 +83,13 @@ const Requesters = () => {
     fetchDepartments();
   }, []);
 
-  // Handle request status update
-  const updateRequestStatus = async (requestId, newStatus, feedback = '') => {
+  // Handle request approval
+  const approveRequest = async (requestId, feedback = '') => {
     try {
-      const response = await fetch(`${API_BASE}/requests/${requestId}/`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_BASE}/requests/${requestId}/approve/`, {
+        method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ 
-          status: newStatus,
           feedback: feedback
         }),
       });
@@ -101,10 +100,50 @@ const Requesters = () => {
 
       // Refresh requests list
       await fetchRequests();
-      alert(`Request ${newStatus} successfully!`);
+      alert('Request approved successfully!');
     } catch (error) {
-      console.error('Error updating request:', error);
-      alert(`Error updating request: ${error.message}`);
+      console.error('Error approving request:', error);
+      alert(`Error approving request: ${error.message}`);
+    }
+  };
+
+  // Handle request rejection
+  const rejectRequest = async (requestId, reason = '') => {
+    try {
+      const response = await fetch(`${API_BASE}/requests/${requestId}/reject/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ 
+          reason: reason
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Refresh requests list
+      await fetchRequests();
+      alert('Request rejected successfully!');
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      alert(`Error rejecting request: ${error.message}`);
+    }
+  };
+
+  // Handle approve with feedback
+  const handleApprove = (requestId) => {
+    const feedback = prompt('Add approval feedback (optional):');
+    approveRequest(requestId, feedback || '');
+  };
+
+  // Handle reject with reason
+  const handleReject = (requestId) => {
+    const reason = prompt('Rejection reason (required):');
+    if (reason && reason.trim()) {
+      rejectRequest(requestId, reason);
+    } else {
+      alert('Rejection reason is required!');
     }
   };
 
@@ -413,16 +452,13 @@ const Requesters = () => {
                       {request.status === 'pending' && (
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => updateRequestStatus(request.id, 'approved')}
+                            onClick={() => handleApprove(request.id)}
                             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                           >
                             ✅ Approve
                           </button>
                           <button
-                            onClick={() => {
-                              const feedback = prompt('Rejection reason (optional):');
-                              updateRequestStatus(request.id, 'rejected', feedback || '');
-                            }}
+                            onClick={() => handleReject(request.id)}
                             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
                           >
                             ❌ Reject
@@ -432,12 +468,23 @@ const Requesters = () => {
                     </div>
                   </div>
                   
-                  {/* Feedback */}
-                  {request.feedback && (
-                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600">
-                        <span className="font-medium">Feedback:</span> {request.feedback}
-                      </p>
+                  {/* Feedback and Rejection Reason */}
+                  {(request.feedback || request.rejection_reason) && (
+                    <div className="mt-4 space-y-2">
+                      {request.feedback && (
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <p className="text-sm text-blue-800">
+                            <span className="font-medium">Approval Feedback:</span> {request.feedback}
+                          </p>
+                        </div>
+                      )}
+                      {request.rejection_reason && (
+                        <div className="p-3 bg-red-50 rounded-lg">
+                          <p className="text-sm text-red-800">
+                            <span className="font-medium">Rejection Reason:</span> {request.rejection_reason}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
