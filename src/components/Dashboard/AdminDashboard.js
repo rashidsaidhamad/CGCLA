@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import AdminOverview from './AdminOverview';
 import UserManagement from './UserManagement';
 import DepartmentManagement from './DepartmentManagement';
-import RoleManagement from './RoleManagement';
 import SystemSettings from './SystemSettings';
 
 const AdminDashboard = ({ user, onLogout }) => {
@@ -22,12 +21,6 @@ const AdminDashboard = ({ user, onLogout }) => {
       name: 'Department Management', 
       icon: '🏢',
       description: 'Manage departments and units'
-    },
-    { 
-      path: '/admin/roles', 
-      name: 'Role Management', 
-      icon: '🔐',
-      description: 'Manage user roles and permissions'
     },
     { 
       path: '/admin/settings', 
@@ -179,7 +172,6 @@ const AdminDashboard = ({ user, onLogout }) => {
             <Routes>
               <Route path="/users" element={<UserManagement user={user} />} />
               <Route path="/departments" element={<DepartmentManagement user={user} />} />
-              <Route path="/roles" element={<RoleManagement user={user} />} />
               <Route path="/settings" element={<SystemSettings user={user} />} />
               <Route path="*" element={<Navigate to="/admin/users" replace />} />
             </Routes>
