@@ -221,7 +221,7 @@ const DepartmentManagement = ({ user }) => {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/auth/departments/${departmentId}/`, {
+      const response = await fetch(`${API_BASE}/auth/departments/${departmentId}/delete/`, {
         method: 'DELETE',
         headers: getHeaders(),
       });
