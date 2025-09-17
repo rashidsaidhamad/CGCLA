@@ -24,6 +24,13 @@ const SuppliersDashboard = () => {
     address: ''
   });
 
+  // GRN Filter states
+  const [filterType, setFilterType] = useState('all'); // 'all', 'week', 'month', 'year'
+  const [selectedWeek, setSelectedWeek] = useState(getWeekNumber(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [filteredGrns, setFilteredGrns] = useState([]);
+
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
   const getAuthToken = () => localStorage.getItem('access_token');
@@ -47,6 +54,52 @@ const SuppliersDashboard = () => {
       'Content-Type': 'application/json',
     };
   };
+
+  // Helper function to get week number
+  function getWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  }
+
+  // Filter GRNs based on selected filter type and date
+  const filterGRNs = (grns, filterType, week, month, year) => {
+    if (filterType === 'all') {
+      return grns;
+    }
+
+    return grns.filter(grn => {
+      const grnDate = new Date(grn.date_received || grn.created_at);
+      
+      switch (filterType) {
+        case 'week':
+          const grnWeek = getWeekNumber(grnDate);
+          const grnYear = grnDate.getFullYear();
+          return grnWeek === week && grnYear === year;
+          
+        case 'month':
+          return grnDate.getMonth() === month && grnDate.getFullYear() === year;
+          
+        case 'year':
+          return grnDate.getFullYear() === year;
+          
+        default:
+          return true;
+      }
+    });
+  };
+
+  // Month names for dropdown
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  // Year options - Generate dynamically (current year and previous 4 years)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   // Fetch all GRNs
   const fetchGRNs = async () => {
@@ -74,7 +127,13 @@ const SuppliersDashboard = () => {
       }
       
       const data = await response.json();
-      setGrns(data.results || data);
+      const allGrns = data.results || data;
+      setGrns(allGrns);
+      
+      // Apply current filters
+      const filtered = filterGRNs(allGrns, filterType, selectedWeek, selectedMonth, selectedYear);
+      setFilteredGrns(filtered);
+      
       setError(null);
     } catch (error) {
       console.error('Error fetching GRNs:', error);
@@ -414,6 +473,14 @@ const SuppliersDashboard = () => {
     fetchSuppliers();
   }, [activeTab]);
 
+  // Apply filters when filter criteria change
+  useEffect(() => {
+    if (grns.length > 0) {
+      const filtered = filterGRNs(grns, filterType, selectedWeek, selectedMonth, selectedYear);
+      setFilteredGrns(filtered);
+    }
+  }, [grns, filterType, selectedWeek, selectedMonth, selectedYear]);
+
   const tabs = [
     { id: 'view-grn', name: 'View GRNs', icon: '📋' },
     { id: 'create-grn', name: 'Create GRN', icon: '➕' },
@@ -480,6 +547,84 @@ const SuppliersDashboard = () => {
           {/* View GRNs Tab */}
           {activeTab === 'view-grn' && (
             <div className="space-y-6">
+              {/* Filter Controls */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter GRNs</h3>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {/* Filter Type */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Filter By</label>
+                    <select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="all">All GRNs</option>
+                      <option value="week">This Week</option>
+                      <option value="month">This Month</option>
+                      <option value="year">This Year</option>
+                    </select>
+                  </div>
+
+                  {/* Week Filter */}
+                  {filterType === 'week' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Week Number</label>
+                      <select
+                        value={selectedWeek}
+                        onChange={(e) => setSelectedWeek(parseInt(e.target.value))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        {Array.from({ length: 52 }, (_, i) => (
+                          <option key={i + 1} value={i + 1}>Week {i + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Month Filter */}
+                  {filterType === 'month' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        {monthNames.map((month, index) => (
+                          <option key={index} value={index}>{month}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Year Filter */}
+                  {(filterType === 'year' || filterType === 'month' || filterType === 'week') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        {yearOptions.map((year) => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Results Count */}
+                  <div className="flex items-end">
+                    <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2">
+                      <span className="text-sm font-medium text-green-800">
+                        {filteredGrns.length} GRN{filteredGrns.length !== 1 ? 's' : ''} found
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <p className="text-red-800">{error}</p>
@@ -491,21 +636,28 @@ const SuppliersDashboard = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
                   <span className="ml-2 text-gray-600">Loading GRNs...</span>
                 </div>
-              ) : grns.length === 0 ? (
+              ) : filteredGrns.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">📋</div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No GRNs found</h3>
-                  <p className="text-gray-500 mb-4">Start by creating your first Goods Receiving Note</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {filterType === 'all' ? 'No GRNs found' : `No GRNs found for selected ${filterType}`}
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    {filterType === 'all' 
+                      ? 'Start by creating your first Goods Receiving Note' 
+                      : 'Try adjusting your filter criteria or create a new GRN'
+                    }
+                  </p>
                   <button
                     onClick={() => setActiveTab('create-grn')}
                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
                   >
-                    Create First GRN
+                    Create New GRN
                   </button>
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {grns.map((grn) => (
+                  {filteredGrns.map((grn) => (
                     <div
                       key={grn.id}
                       className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"

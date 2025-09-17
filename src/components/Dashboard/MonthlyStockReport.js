@@ -10,6 +10,13 @@ const MonthlyStockReport = ({ user }) => {
     total_stock_value: 0
   });
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [stockTransactions, setStockTransactions] = useState([]);
+  const [monthlyStats, setMonthlyStats] = useState({
+    totalIssued: 0,
+    totalReceived: 0,
+    netChange: 0,
+    transactionCount: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,9 +37,11 @@ const MonthlyStockReport = ({ user }) => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  const years = [2023, 2024, 2025];
+  // Generate years dynamically - current year and previous 4 years
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-  // Fetch stock summary
+  // Fetch stock summary and filtered transactions
   const fetchStockData = async () => {
     setIsLoading(true);
     setError(null);
@@ -62,6 +71,41 @@ const MonthlyStockReport = ({ user }) => {
       const itemsData = await itemsResponse.json();
       setInventoryItems(itemsData.results || itemsData);
 
+      // Fetch stock transactions for the selected month
+      const transactionsResponse = await fetch(`${API_BASE}/inventory/transactions/`, {
+        headers: getHeaders()
+      });
+
+      if (!transactionsResponse.ok) {
+        throw new Error(`HTTP error! status: ${transactionsResponse.status}`);
+      }
+
+      const transactionsData = await transactionsResponse.json();
+      const allTransactions = transactionsData.results || transactionsData;
+
+      // Filter transactions by selected month and year
+      const filteredTransactions = allTransactions.filter(transaction => {
+        const transactionDate = new Date(transaction.date);
+        return transactionDate.getMonth() === selectedMonth && 
+               transactionDate.getFullYear() === selectedYear;
+      });
+
+      setStockTransactions(filteredTransactions);
+
+      // Calculate monthly statistics
+      const issuedTransactions = filteredTransactions.filter(t => t.transaction_type === 'issued');
+      const receivedTransactions = filteredTransactions.filter(t => t.transaction_type === 'received');
+      
+      const totalIssued = issuedTransactions.reduce((sum, t) => sum + t.quantity, 0);
+      const totalReceived = receivedTransactions.reduce((sum, t) => sum + t.quantity, 0);
+      
+      setMonthlyStats({
+        totalIssued,
+        totalReceived,
+        netChange: totalReceived - totalIssued,
+        transactionCount: filteredTransactions.length
+      });
+
     } catch (error) {
       console.error('Error fetching stock data:', error);
       setError('Failed to load stock data. Please try again.');
@@ -71,6 +115,7 @@ const MonthlyStockReport = ({ user }) => {
   };
 
   useEffect(() => {
+    console.log(`Fetching data for ${monthNames[selectedMonth]} ${selectedYear}`);
     fetchStockData();
   }, [selectedMonth, selectedYear]);
 
@@ -106,9 +151,9 @@ const MonthlyStockReport = ({ user }) => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900"> Stock Report</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Stock Report - {monthNames[selectedMonth]} {selectedYear}</h2>
             <p className="text-gray-600 mt-1">
-              Current stock balance and inventory status
+              Stock balance and transaction activity for the selected period
             </p>
           </div>
           <div className="mt-4 lg:mt-0 flex items-center space-x-4">
@@ -194,6 +239,107 @@ const MonthlyStockReport = ({ user }) => {
           </div>
         </div>
       </div>
+
+      {/* Monthly Transaction Statistics */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Monthly Activity for {monthNames[selectedMonth]} {selectedYear}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="text-center p-4 bg-green-50 rounded-lg">
+            <p className="text-2xl font-bold text-green-600">{monthlyStats.totalReceived}</p>
+            <p className="text-sm text-gray-600">Items Received</p>
+          </div>
+          <div className="text-center p-4 bg-red-50 rounded-lg">
+            <p className="text-2xl font-bold text-red-600">{monthlyStats.totalIssued}</p>
+            <p className="text-sm text-gray-600">Items Issued</p>
+          </div>
+          <div className="text-center p-4 bg-blue-50 rounded-lg">
+            <p className={`text-2xl font-bold ${monthlyStats.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {monthlyStats.netChange >= 0 ? '+' : ''}{monthlyStats.netChange}
+            </p>
+            <p className="text-sm text-gray-600">Net Change</p>
+          </div>
+          <div className="text-center p-4 bg-purple-50 rounded-lg">
+            <p className="text-2xl font-bold text-purple-600">{monthlyStats.transactionCount}</p>
+            <p className="text-sm text-gray-600">Total Transactions</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Transactions for Selected Month */}
+      {stockTransactions.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Transactions for {monthNames[selectedMonth]} {selectedYear}
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Item
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quantity
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Performed By
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {stockTransactions.slice(0, 10).map((transaction, index) => (
+                  <tr key={index}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(transaction.date).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {transaction.item_name || 'Unknown Item'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        transaction.transaction_type === 'received' 
+                          ? 'bg-green-100 text-green-800'
+                          : transaction.transaction_type === 'issued'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {transaction.transaction_type.charAt(0).toUpperCase() + transaction.transaction_type.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {transaction.quantity}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {transaction.performed_by || 'System'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {stockTransactions.length > 10 && (
+            <p className="text-sm text-gray-500 mt-2">
+              Showing 10 of {stockTransactions.length} transactions
+            </p>
+          )}
+        </div>
+      )}
+
+      {stockTransactions.length === 0 && !isLoading && (
+        <div className="bg-gray-50 rounded-lg p-8 text-center">
+          <p className="text-gray-500">
+            No transactions found for {monthNames[selectedMonth]} {selectedYear}
+          </p>
+        </div>
+      )}
 
       {/* Current Inventory Items */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
