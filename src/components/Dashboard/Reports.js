@@ -6,6 +6,7 @@ const Reports = () => {
     inventoryReport: null,
     issuedReport: null
   });
+  const [filteredData, setFilteredData] = useState(null);
   const [selectedReport, setSelectedReport] = useState('issued');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -79,6 +80,8 @@ const Reports = () => {
 
   // Filter data based on selected time filter
   const filterDataByTime = (data) => {
+    console.log('filterDataByTime called with:', { data, selectedTimeFilter, selectedMonth, selectedWeek });
+    
     if (!data || selectedTimeFilter === 'all') return data;
 
     const now = new Date();
@@ -88,6 +91,7 @@ const Reports = () => {
       const year = now.getFullYear();
       startDate = new Date(year, parseInt(selectedMonth) - 1, 1);
       endDate = new Date(year, parseInt(selectedMonth), 0);
+      console.log('Month filter:', { year, month: selectedMonth, startDate, endDate });
     } else if (selectedTimeFilter === 'week' && selectedWeek) {
       const year = now.getFullYear();
       const firstDay = new Date(year, 0, 1);
@@ -102,17 +106,22 @@ const Reports = () => {
       
       endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + 6);
+      console.log('Week filter:', { week: selectedWeek, startDate, endDate });
     }
 
     if (startDate && endDate) {
       // Filter based on the data structure
       if (data.items) {
+        const filteredItems = data.items.filter(item => {
+          const itemDate = new Date(item.created_at || item.date_requested || item.date);
+          const isInRange = itemDate >= startDate && itemDate <= endDate;
+          console.log('Filtering item:', { itemDate, startDate, endDate, isInRange });
+          return isInRange;
+        });
+        console.log('Filtered items count:', filteredItems.length);
         return {
           ...data,
-          items: data.items.filter(item => {
-            const itemDate = new Date(item.created_at || item.date_requested || item.date);
-            return itemDate >= startDate && itemDate <= endDate;
-          })
+          items: filteredItems
         };
       } else if (Array.isArray(data)) {
         return data.filter(item => {
@@ -163,6 +172,19 @@ const Reports = () => {
   useEffect(() => {
     fetchReport(selectedReport);
   }, [selectedReport]);
+
+  // Apply filters whenever data or filter values change
+  useEffect(() => {
+    const rawData = reportData[`${selectedReport}Report`];
+    if (rawData) {
+      const filtered = filterDataByTime(rawData);
+      setFilteredData(filtered);
+      console.log('Applying filters:', { selectedTimeFilter, selectedMonth, selectedWeek });
+      console.log('Filtered data:', filtered);
+    } else {
+      setFilteredData(null);
+    }
+  }, [reportData, selectedReport, selectedTimeFilter, selectedMonth, selectedWeek]);
 
   // Handle report type change
   const handleReportChange = (reportType) => {
@@ -227,8 +249,7 @@ const Reports = () => {
 
   // Get current report data with filtering applied
   const getCurrentReportData = () => {
-    const rawData = reportData[`${selectedReport}Report`];
-    return filterDataByTime(rawData);
+    return filteredData;
   };
 
   // Render report content based on type

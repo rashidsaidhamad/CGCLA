@@ -316,6 +316,28 @@ const SuppliersDashboard = () => {
         console.log(`Successfully created item:`, result); // Debug log
       }
       
+      // Update GRN status to 'completed' or 'added_to_stock'
+      try {
+        const updateResponse = await fetch(`${API_BASE}/suppliers/receiving-notes/${stockFormData.grnId}/`, {
+          method: 'PATCH',
+          headers: getHeaders(),
+          body: JSON.stringify({
+            status: 'completed',
+            processed_date: new Date().toISOString()
+          }),
+        });
+        
+        if (updateResponse.ok) {
+          console.log('GRN status updated successfully');
+          // Refresh GRNs to show updated status
+          fetchGRNs();
+        } else {
+          console.warn('Failed to update GRN status, but items were added to stock');
+        }
+      } catch (statusError) {
+        console.warn('Error updating GRN status:', statusError);
+      }
+      
       alert(`All items have been added to stock successfully with PO Number: ${stockFormData.poNumber}!`);
       setShowStockForm(false);
       setStockFormData(null);
@@ -500,6 +522,7 @@ const SuppliersDashboard = () => {
       case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'approved': return 'bg-green-100 text-green-800 border-green-200';
       case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
+      case 'completed': return 'bg-blue-100 text-blue-800 border-blue-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -708,12 +731,18 @@ const SuppliersDashboard = () => {
                         >
                           View Details
                         </button>
-                        <button
-                          onClick={() => addToStock(grn.id, grn.items || [])}
-                          className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
-                        >
-                          Add to Stock
-                        </button>
+                        {grn.status === 'completed' ? (
+                          <span className="text-green-600 px-3 py-1 rounded text-sm font-medium">
+                            ✓ Added to Stock
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => addToStock(grn.id, grn.items || [])}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                          >
+                            Add to Stock
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
