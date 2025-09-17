@@ -1,197 +1,392 @@
 import React, { useState, useEffect } from 'react';
 
 const ChiefOverview = ({ user }) => {
-  const [currentMonth] = useState(new Date().getMonth());
-  const [currentYear] = useState(new Date().getFullYear());
+  const [stockSummary, setStockSummary] = useState({
+    total_items: 0,
+    low_stock_items: 0,
+    out_of_stock_items: 0,
+    total_stock_value: 0,
+    recent_transactions: 0
+  });
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [stockTransactions, setStockTransactions] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // API configuration
+  const API_BASE = 'http://127.0.0.1:8000/api';
+  const getAuthToken = () => localStorage.getItem('access_token');
   
-  // Mock data for monthly overview
-  const monthlyData = {
-    totalStockValue: 2500000,
-    itemsIssued: 1250,
-    availableItems: 8750,
-    departments: 12,
-    topIssuedItems: [
-      { name: 'Laboratory Gloves', issued: 500, category: 'Safety Equipment' },
-      { name: 'Test Tubes', issued: 350, category: 'Laboratory Equipment' },
-      { name: 'Safety Goggles', issued: 200, category: 'Safety Equipment' },
-      { name: 'Beakers', issued: 180, category: 'Laboratory Equipment' },
-      { name: 'Pipettes', issued: 150, category: 'Laboratory Equipment' }
-    ],
-    monthlyTrend: [
-      { month: 'Jan', issued: 980, available: 9020 },
-      { month: 'Feb', issued: 1100, available: 8900 },
-      { month: 'Mar', issued: 1200, available: 8800 },
-      { month: 'Apr', issued: 1150, available: 8850 },
-      { month: 'May', issued: 1300, available: 8700 },
-      { month: 'Jun', issued: 1180, available: 8820 },
-      { month: 'Jul', issued: 1220, available: 8780 },
-      { month: 'Aug', issued: 1250, available: 8750 }
-    ]
+  const getHeaders = () => {
+    const token = getAuthToken();
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
   };
 
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+  // Month options for dropdown
+  const months = [
+    { value: 1, label: 'January' },
+    { value: 2, label: 'February' },
+    { value: 3, label: 'March' },
+    { value: 4, label: 'April' },
+    { value: 5, label: 'May' },
+    { value: 6, label: 'June' },
+    { value: 7, label: 'July' },
+    { value: 8, label: 'August' },
+    { value: 9, label: 'September' },
+    { value: 10, label: 'October' },
+    { value: 11, label: 'November' },
+    { value: 12, label: 'December' }
   ];
 
-  const StatCard = ({ title, value, subtitle, icon, color }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className={`text-2xl font-bold ${color}`}>{value}</p>
-          <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
-        </div>
-        <div className={`text-3xl`}>
-          {icon}
-        </div>
+  // Year options (current year and previous 2 years)
+  const years = [
+    new Date().getFullYear(),
+    new Date().getFullYear() - 1,
+    new Date().getFullYear() - 2
+  ];
+
+  // Fetch stock summary
+  const fetchStockSummary = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/stock/summary/`, {
+        headers: getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setStockSummary(data);
+    } catch (error) {
+      console.error('Error fetching stock summary:', error);
+      setError('Failed to load stock summary');
+    }
+  };
+
+  // Fetch inventory items
+  const fetchInventoryItems = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/items/`, {
+        headers: getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setInventoryItems(data.results || data);
+    } catch (error) {
+      console.error('Error fetching inventory items:', error);
+      setError('Failed to load inventory items');
+    }
+  };
+
+  // Fetch stock transactions with date filtering
+  const fetchStockTransactions = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/transactions/`, {
+        headers: getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      let transactions = data.results || data;
+
+      // Filter transactions by selected month and year
+      if (selectedMonth && selectedYear) {
+        transactions = transactions.filter(transaction => {
+          const transactionDate = new Date(transaction.date);
+          return transactionDate.getMonth() + 1 === selectedMonth && 
+                 transactionDate.getFullYear() === selectedYear;
+        });
+      }
+
+      setStockTransactions(transactions);
+    } catch (error) {
+      console.error('Error fetching stock transactions:', error);
+      setError('Failed to load stock transactions');
+    }
+  };
+
+  // Load all data
+  const loadData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await Promise.all([
+        fetchStockSummary(),
+        fetchInventoryItems(),
+        fetchStockTransactions()
+      ]);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    // Reload transactions when month/year filter changes
+    fetchStockTransactions();
+  }, [selectedMonth, selectedYear]);
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'TZS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-600">{error}</p>
+        <button 
+          onClick={loadData}
+          className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              Executive Dashboard - {monthNames[currentMonth]} {currentYear}
-            </h2>
-            <p className="text-gray-600 mt-2">
-              Monthly stock overview and performance metrics
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-500">Last Updated</div>
-            <div className="text-sm font-medium text-gray-900">
-              {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
-            </div>
-          </div>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Chief Overview</h2>
+        <div className="flex space-x-4">
+          {/* Month Filter */}
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Months</option>
+            {months.map(month => (
+              <option key={month.value} value={month.value}>
+                {month.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Year Filter */}
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {years.map(year => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={loadData}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Stock Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Stock Value"
-          value={`TZS ${monthlyData.totalStockValue.toLocaleString()}`}
-          subtitle="Current inventory value"
-          icon="💰"
-          color="text-green-600"
-        />
-        <StatCard
-          title="Items Issued"
-          value={monthlyData.itemsIssued.toLocaleString()}
-          subtitle="This month"
-          icon="📤"
-          color="text-blue-600"
-        />
-        <StatCard
-          title="Available Items"
-          value={monthlyData.availableItems.toLocaleString()}
-          subtitle="In stock"
-          icon="📦"
-          color="text-purple-600"
-        />
-        <StatCard
-          title="Active Departments"
-          value={monthlyData.departments}
-          subtitle="Making requests"
-          icon="🏢"
-          color="text-orange-600"
-        />
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Trend */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Trend (2025)</h3>
-          <div className="space-y-4">
-            {monthlyData.monthlyTrend.map((month, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="w-12 text-sm font-medium text-gray-600">{month.month}</div>
-                <div className="flex-1 mx-4">
-                  <div className="flex h-8 bg-gray-100 rounded overflow-hidden">
-                    <div 
-                      className="bg-blue-500 flex items-center justify-center text-white text-xs font-medium"
-                      style={{ width: `${(month.issued / (month.issued + month.available)) * 100}%` }}
-                    >
-                      {month.issued}
-                    </div>
-                    <div 
-                      className="bg-purple-500 flex items-center justify-center text-white text-xs font-medium"
-                      style={{ width: `${(month.available / (month.issued + month.available)) * 100}%` }}
-                    >
-                      {month.available}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {((month.issued / (month.issued + month.available)) * 100).toFixed(1)}% issued
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-center mt-4 space-x-4">
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
-              <span className="text-sm text-gray-600">Issued</span>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
             </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-purple-500 rounded mr-2"></div>
-              <span className="text-sm text-gray-600">Available</span>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Items</p>
+              <p className="text-2xl font-semibold text-gray-900">{stockSummary.total_items}</p>
             </div>
           </div>
         </div>
 
-        {/* Top Issued Items */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Issued Items This Month</h3>
-          <div className="space-y-4">
-            {monthlyData.topIssuedItems.map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-sm mr-3">
-                    {index + 1}
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-900">{item.name}</div>
-                    <div className="text-sm text-gray-500">{item.category}</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold text-gray-900">{item.issued}</div>
-                  <div className="text-xs text-gray-500">units</div>
-                </div>
-              </div>
-            ))}
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-2 bg-yellow-100 rounded-lg">
+              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
+              <p className="text-2xl font-semibold text-yellow-600">{stockSummary.low_stock_items}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-2 bg-red-100 rounded-lg">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+              <p className="text-2xl font-semibold text-red-600">{stockSummary.out_of_stock_items}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Stock Value</p>
+              <p className="text-2xl font-semibold text-green-600">{formatCurrency(stockSummary.total_stock_value)}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left">
-            <div className="text-2xl mb-2">📊</div>
-            <div className="font-medium text-gray-900">View Detailed Reports</div>
-            <div className="text-sm text-gray-500">Access comprehensive stock reports</div>
-          </button>
-          <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left">
-            <div className="text-2xl mb-2">📈</div>
-            <div className="font-medium text-gray-900">Export Data</div>
-            <div className="text-sm text-gray-500">Download monthly reports</div>
-          </button>
-          <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left">
-            <div className="text-2xl mb-2">🔔</div>
-            <div className="font-medium text-gray-900">Set Alerts</div>
-            <div className="text-sm text-gray-500">Configure stock level alerts</div>
-          </button>
+      {/* Recent Stock Transactions */}
+      <div className="bg-white rounded-lg shadow-md">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">
+            Stock Transactions 
+            {selectedMonth && selectedYear && (
+              <span className="text-sm text-gray-500 ml-2">
+                ({months.find(m => m.value === selectedMonth)?.label} {selectedYear})
+              </span>
+            )}
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Item
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Quantity
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Performed By
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {stockTransactions.length > 0 ? (
+                stockTransactions.slice(0, 10).map((transaction, index) => (
+                  <tr key={index}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {transaction.item_name || 'Unknown Item'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        transaction.transaction_type === 'received' 
+                          ? 'bg-green-100 text-green-800'
+                          : transaction.transaction_type === 'issued'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {transaction.transaction_type.charAt(0).toUpperCase() + transaction.transaction_type.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {transaction.quantity}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {transaction.performed_by || 'System'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(transaction.date)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                    No stock transactions found for the selected period
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      {/* Low Stock Items Alert */}
+      {stockSummary.low_stock_items > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Low Stock Alert
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>
+                  You have {stockSummary.low_stock_items} items with low stock levels. 
+                  Consider restocking these items soon.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
