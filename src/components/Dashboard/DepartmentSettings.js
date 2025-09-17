@@ -64,7 +64,7 @@ const DepartmentSettings = ({ user }) => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg p-8 text-white">
-        <h1 className="text-3xl font-bold mb-2">Department Settings</h1>
+        <h1 className="text-3xl font-bold mb-2">Settings</h1>
         <p className="text-blue-100 text-lg">
           Customize your workspace preferences
         </p>

@@ -1,26 +1,43 @@
 import React, { useState } from 'react';
 
+const unitOptions = [
+  'Piece',
+  'Box',
+  'Pack',
+  'Ream',
+  'Liter',
+  'Kilogram',
+  'Gram',
+  'Meter',
+  'Set',
+  'Dozen',
+  'Bottle',
+  'Bag',
+  'Roll',
+  'Sheet',
+  'Carton',
+  'Bundle',
+  'Pair',
+  'Each'
+];
+
 const initialRows = [
-  { sn: 1, description: '', unit: '', totalReceived: '', accepted: '', rejected: '', amount: '', reason: '' }
+  { sn: 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', reason: '' }
 ];
 
 
-const GoodReceivingNote = ({ onSubmitNote }) => {
+const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
   const [rows, setRows] = useState(initialRows);
   const [form, setForm] = useState({
     poNumber: '',
-    lpoDeliveryNumber: '',
+    supplierName: '',
     senderDetails: '',
-    deliveryMethod: '',
     transport: '',
     dateReceived: '',
     timeReceived: '',
     registrationPlate: '',
-    containerSealNo: '',
     personDelivering: '',
-    personDeliveringSignature: '',
-    storekeeper: '',
-    storekeeperSignature: ''
+    storekeeper: ''
   });
 
   const handleRowChange = (idx, field, value) => {
@@ -28,11 +45,39 @@ const GoodReceivingNote = ({ onSubmitNote }) => {
   };
 
   const addRow = () => {
-    setRows(rows => [...rows, { sn: rows.length + 1, description: '', unit: '', totalReceived: '', accepted: '', rejected: '', amount: '', reason: '' }]);
+    setRows(rows => [...rows, { sn: rows.length + 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', reason: '' }]);
   };
 
   const handleFormChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSupplierChange = (e) => {
+    const selectedSupplierId = e.target.value;
+    const selectedSupplier = suppliers.find(s => s.id.toString() === selectedSupplierId);
+    
+    if (selectedSupplier) {
+      setForm(prev => ({
+        ...prev,
+        supplierName: selectedSupplier.name,
+        senderDetails: `${selectedSupplier.name} - ${selectedSupplier.contact_person || 'Contact Person'}`
+      }));
+    } else {
+      setForm(prev => ({
+        ...prev,
+        supplierName: '',
+        senderDetails: ''
+      }));
+    }
+  };
+
+  const handleRegistrationPlateChange = (e) => {
+    const value = e.target.value;
+    // Allow only alphanumeric characters, spaces, and common plate separators (-, /)
+    const validPattern = /^[A-Za-z0-9\s\-\/]*$/;
+    if (validPattern.test(value)) {
+      setForm({ ...form, registrationPlate: value.toUpperCase() });
+    }
   };
 
   const handleSubmit = (e) => {
@@ -42,18 +87,14 @@ const GoodReceivingNote = ({ onSubmitNote }) => {
     }
     setForm({
       poNumber: '',
-      lpoDeliveryNumber: '',
+      supplierName: '',
       senderDetails: '',
-      deliveryMethod: '',
       transport: '',
       dateReceived: '',
       timeReceived: '',
       registrationPlate: '',
-      containerSealNo: '',
       personDelivering: '',
-      personDeliveringSignature: '',
-      storekeeper: '',
-      storekeeperSignature: ''
+      storekeeper: ''
     });
     setRows(initialRows);
   };
@@ -64,16 +105,36 @@ const GoodReceivingNote = ({ onSubmitNote }) => {
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium">PO Number / L.P.O Delivery Number</label>
+            <label className="block text-sm font-medium">PO Number</label>
             <input name="poNumber" value={form.poNumber} onChange={handleFormChange} className="w-full border rounded px-2 py-1" required />
           </div>
           <div>
-            <label className="block text-sm font-medium">Sender Details</label>
-            <input name="senderDetails" value={form.senderDetails} onChange={handleFormChange} className="w-full border rounded px-2 py-1" required />
+            <label className="block text-sm font-medium">Supplier Name</label>
+            <select 
+              name="supplierName" 
+              value={suppliers.find(s => s.name === form.supplierName)?.id || ''} 
+              onChange={handleSupplierChange} 
+              className="w-full border rounded px-2 py-1" 
+              required
+            >
+              <option value="">Select Supplier</option>
+              {suppliers.map(supplier => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="block text-sm font-medium">Delivery Method</label>
-            <input name="deliveryMethod" value={form.deliveryMethod} onChange={handleFormChange} className="w-full border rounded px-2 py-1" required />
+            <label className="block text-sm font-medium">Sender Details</label>
+            <input 
+              name="senderDetails" 
+              value={form.senderDetails} 
+              onChange={handleFormChange}
+              className="w-full border rounded px-2 py-1 bg-gray-50" 
+              placeholder="Auto-populated from supplier selection"
+              readOnly
+            />
           </div>
           <div>
             <label className="block text-sm font-medium">Transport</label>
@@ -89,11 +150,15 @@ const GoodReceivingNote = ({ onSubmitNote }) => {
           </div>
           <div>
             <label className="block text-sm font-medium">Registration Plate No.</label>
-            <input name="registrationPlate" value={form.registrationPlate} onChange={handleFormChange} className="w-full border rounded px-2 py-1" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Container / Seal No. (If Applicable)</label>
-            <input name="containerSealNo" value={form.containerSealNo} onChange={handleFormChange} className="w-full border rounded px-2 py-1" />
+            <input 
+              name="registrationPlate" 
+              value={form.registrationPlate} 
+              onChange={handleRegistrationPlateChange}
+              pattern="[A-Za-z0-9\s\-\/]+"
+              title="Registration plate should contain only letters, numbers, spaces, hyphens, and forward slashes"
+              placeholder="e.g., ABC-123, T456DEF, KAA-001B"
+              className="w-full border rounded px-2 py-1" 
+            />
           </div>
         </div>
         <div className="overflow-x-auto mb-4">
@@ -115,7 +180,17 @@ const GoodReceivingNote = ({ onSubmitNote }) => {
                 <tr key={idx}>
                   <td className="border px-2 py-1 text-center">{row.sn}</td>
                   <td className="border px-2 py-1"><input value={row.description} onChange={e => handleRowChange(idx, 'description', e.target.value)} className="w-full" /></td>
-                  <td className="border px-2 py-1"><input value={row.unit} onChange={e => handleRowChange(idx, 'unit', e.target.value)} className="w-full" /></td>
+                  <td className="border px-2 py-1">
+                    <select 
+                      value={row.unit} 
+                      onChange={e => handleRowChange(idx, 'unit', e.target.value)} 
+                      className="w-full border rounded px-1 py-1"
+                    >
+                      {unitOptions.map(unit => (
+                        <option key={unit} value={unit}>{unit}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="border px-2 py-1"><input value={row.totalReceived} onChange={e => handleRowChange(idx, 'totalReceived', e.target.value)} className="w-full" /></td>
                   <td className="border px-2 py-1"><input value={row.accepted} onChange={e => handleRowChange(idx, 'accepted', e.target.value)} className="w-full" /></td>
                   <td className="border px-2 py-1"><input value={row.rejected} onChange={e => handleRowChange(idx, 'rejected', e.target.value)} className="w-full" /></td>
@@ -133,16 +208,8 @@ const GoodReceivingNote = ({ onSubmitNote }) => {
             <input name="personDelivering" value={form.personDelivering} onChange={handleFormChange} className="w-full border rounded px-2 py-1" required />
           </div>
           <div>
-            <label className="block text-sm font-medium">Signature</label>
-            <input name="personDeliveringSignature" value={form.personDeliveringSignature} onChange={handleFormChange} className="w-full border rounded px-2 py-1" />
-          </div>
-          <div>
             <label className="block text-sm font-medium">Name of Storekeeper</label>
             <input name="storekeeper" value={form.storekeeper} onChange={handleFormChange} className="w-full border rounded px-2 py-1" required />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Signature</label>
-            <input name="storekeeperSignature" value={form.storekeeperSignature} onChange={handleFormChange} className="w-full border rounded px-2 py-1" />
           </div>
         </div>
         <div className="flex justify-end">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatCurrency } from '../../utils/currency';
 
 const DepartmentOverview = ({ user }) => {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -239,7 +240,7 @@ const DepartmentOverview = ({ user }) => {
                         <div>Location: <span className="font-medium">{item.location}</span></div>
                       </div>
                       <div className="text-right text-sm text-gray-600">
-                        <div>Price: <span className="font-medium">${item.unit_price}</span></div>
+                        <div>Price: <span className="font-medium">{formatCurrency(item.unit_price)}</span></div>
                         <div>Min: <span className="font-medium">{item.min_stock}</span></div>
                       </div>
                     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { saveAs } from 'file-saver';
 
 const Requesters = () => {
@@ -242,14 +242,46 @@ const Requesters = () => {
       ];
     });
 
-    // Add table
-    doc.autoTable({
-      head: [['ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Date']],
-      body: tableData,
-      startY: 40,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [59, 130, 246] }
-    });
+    // Try to use autoTable, fallback to manual table if not available
+    try {
+      if (doc.autoTable) {
+        doc.autoTable({
+          head: [['ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Date']],
+          body: tableData,
+          startY: 40,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [59, 130, 246] }
+        });
+      } else {
+        throw new Error('autoTable not available');
+      }
+    } catch (error) {
+      // Fallback: Manual table creation
+      console.log('Using manual table creation for simple PDF:', error);
+      doc.setFontSize(8);
+      
+      // Table header
+      doc.setFont('helvetica', 'bold');
+      doc.text('ID', 20, 50);
+      doc.text('Requester', 35, 50);
+      doc.text('Department', 80, 50);
+      doc.text('Item', 120, 50);
+      doc.text('Qty', 160, 50);
+      doc.text('Status', 175, 50);
+      
+      // Table data
+      doc.setFont('helvetica', 'normal');
+      let yPos = 60;
+      tableData.slice(0, 25).forEach((row, index) => { // Limit to 25 rows to fit on page
+        doc.text(String(row[0]), 20, yPos);
+        doc.text(String(row[1]).substring(0, 15), 35, yPos); // Truncate long names
+        doc.text(String(row[2]).substring(0, 12), 80, yPos);
+        doc.text(String(row[3]).substring(0, 12), 120, yPos);
+        doc.text(String(row[4]), 160, yPos);
+        doc.text(String(row[5]), 175, yPos);
+        yPos += 8;
+      });
+    }
     
     const dateStr = new Date().toISOString().split('T')[0];
     doc.save(`requests_report_${dateStr}.pdf`);
@@ -282,6 +314,138 @@ const Requesters = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const dateStr = new Date().toISOString().split('T')[0];
     saveAs(blob, `requests_report_${dateStr}.csv`);
+  };
+
+  // Export to PDF with signature placeholder
+  const exportToPDFWithSignature = () => {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ITEM REQUESTS REPORT', 105, 20, { align: 'center' });
+    
+    // Add subtitle
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 30, { align: 'center' });
+    
+    // Add summary statistics
+    const stats = {
+      totalRequests: requests.length,
+      pendingRequests: requests.filter(req => req.status === 'pending').length,
+      approvedRequests: requests.filter(req => req.status === 'approved').length,
+      rejectedRequests: requests.filter(req => req.status === 'rejected').length
+    };
+    
+    doc.setFontSize(10);
+    doc.text(`Total Requests: ${stats.totalRequests}`, 20, 45);
+    doc.text(`Pending: ${stats.pendingRequests}`, 20, 52);
+    doc.text(`Approved: ${stats.approvedRequests}`, 80, 45);
+    doc.text(`Rejected: ${stats.rejectedRequests}`, 80, 52);
+    
+    // Prepare table data
+    const tableData = sortedRequests.map(request => {
+      const user = request.requester || request.user;
+      const dept = user?.department || request.department;
+      return [
+        request.id,
+        user?.first_name && user?.last_name 
+          ? `${user.first_name} ${user.last_name}` 
+          : user?.username || user?.email || 'Unknown User',
+        dept?.name || 'Unknown Department',
+        getItemName(request.item),
+        request.quantity,
+        request.status.charAt(0).toUpperCase() + request.status.slice(1),
+        new Date(request.created_at).toLocaleDateString()
+      ];
+    });
+
+    // Try to use autoTable, fallback to manual table if not available
+    let finalY = 65;
+    try {
+      if (doc.autoTable) {
+        doc.autoTable({
+          head: [['ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Date']],
+          body: tableData,
+          startY: 65,
+          styles: { 
+            fontSize: 8,
+            cellPadding: 3
+          },
+          headStyles: { 
+            fillColor: [59, 130, 246],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [245, 245, 245]
+          }
+        });
+        finalY = doc.lastAutoTable.finalY || 200;
+      } else {
+        throw new Error('autoTable not available');
+      }
+    } catch (error) {
+      // Fallback: Manual table creation
+      console.log('Using manual table creation:', error);
+      doc.setFontSize(8);
+      
+      // Table header
+      doc.setFont('helvetica', 'bold');
+      doc.text('ID', 20, 70);
+      doc.text('Requester', 35, 70);
+      doc.text('Department', 80, 70);
+      doc.text('Item', 120, 70);
+      doc.text('Qty', 160, 70);
+      doc.text('Status', 175, 70);
+      
+      // Table data
+      doc.setFont('helvetica', 'normal');
+      let yPos = 80;
+      tableData.slice(0, 20).forEach((row, index) => { // Limit to 20 rows to fit on page
+        doc.text(String(row[0]), 20, yPos);
+        doc.text(String(row[1]).substring(0, 15), 35, yPos); // Truncate long names
+        doc.text(String(row[2]).substring(0, 12), 80, yPos);
+        doc.text(String(row[3]).substring(0, 12), 120, yPos);
+        doc.text(String(row[4]), 160, yPos);
+        doc.text(String(row[5]), 175, yPos);
+        yPos += 8;
+      });
+      
+      finalY = yPos + 10;
+    }
+    
+    // Add signature section
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AUTHORIZATION SIGNATURES', 20, finalY + 20);
+    
+    // Signature boxes
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    
+    // Approved by
+    doc.text('Approved by:', 20, finalY + 90);
+    doc.text('Name: ________________________________', 20, finalY + 100);
+    doc.text('Signature: ___________________________', 20, finalY + 110);
+    doc.text('Date: _______________', 20, finalY + 120);
+    
+    // Received by
+    doc.text('Received by:', 110, finalY + 90);
+    doc.text('Name: ________________________________', 110, finalY + 100);
+    doc.text('Signature: ___________________________', 110, finalY + 110);
+    doc.text('Date: _______________', 110, finalY + 120);
+    
+    // Add footer note
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.text('physical signatures', 105, finalY + 140, { align: 'center' });
+    doc.text('Generated by CGCLA Warehouse Management System', 105, finalY + 148, { align: 'center' });
+    
+    // Save the PDF
+    const dateStr = new Date().toISOString().split('T')[0];
+    doc.save(`requests_report_with_signature_${dateStr}.pdf`);
   };
 
   // Filter requests
@@ -514,6 +678,16 @@ const Requesters = () => {
               <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
             Export to CSV
+          </button>
+
+          <button
+            onClick={exportToPDFWithSignature}
+            className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+            </svg>
+            📝 Export PDF with Signature
           </button>
         </div>
         

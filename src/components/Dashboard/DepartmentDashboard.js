@@ -111,7 +111,7 @@ const DepartmentDashboard = ({ user, onLogout }) => {
                 {user?.department?.name || 'Chemistry Lab'}
               </h4>
               <p className="text-xs text-blue-600">
-                Head: {user?.headOfDepartment || 'Dr. John Smith'}
+                Head: {user?.headOfDepartment || 'Not Assigned'}
               </p>
             </div>
           </div>

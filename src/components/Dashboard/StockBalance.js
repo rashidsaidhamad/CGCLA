@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { formatCurrency } from '../../utils/currency';
+import StockAdjustmentModal from './StockAdjustmentModal';
 
 const StockBalance = () => {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -12,6 +14,15 @@ const StockBalance = () => {
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+
+  // Stock adjustment modal state
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [stockAdjustment, setStockAdjustment] = useState({
+    type: 'increase',
+    quantity: 0,
+    reason: ''
+  });
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -65,7 +76,7 @@ const StockBalance = () => {
   // Fetch recent stock transactions
   const fetchStockTransactions = async () => {
     try {
-      const response = await fetch(`${API_BASE}/inventory/stock/transactions/`, {
+      const response = await fetch(`${API_BASE}/inventory/transactions/`, {
         headers: getHeaders(),
       });
       
@@ -76,6 +87,52 @@ const StockBalance = () => {
     } catch (error) {
       console.error('Error fetching stock transactions:', error);
     }
+  };
+
+  // Handle stock adjustment
+  const handleStockAdjustment = async () => {
+    if (!stockAdjustment.quantity || !stockAdjustment.reason) {
+      alert('Please enter quantity and reason for adjustment');
+      return;
+    }
+
+    try {
+      // Calculate adjustment value (positive for increase, negative for decrease)
+      const adjustmentValue = stockAdjustment.type === 'increase' 
+        ? stockAdjustment.quantity 
+        : -stockAdjustment.quantity;
+
+      const response = await fetch(`${API_BASE}/inventory/stock/adjust/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          item_id: selectedItem.id,
+          adjustment: adjustmentValue,
+          reason: stockAdjustment.reason
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Stock adjusted successfully! ${result.item}: ${result.old_stock} → ${result.new_stock} units`);
+        setShowStockModal(false);
+        setSelectedItem(null);
+        setStockAdjustment({ type: 'increase', quantity: 0, reason: '' });
+        fetchInventoryItems(); // Refresh the data
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error || 'Failed to adjust stock'}`);
+      }
+    } catch (error) {
+      console.error('Error adjusting stock:', error);
+      alert('Error updating stock. Please try again.');
+    }
+  };
+
+  // Open stock adjustment modal
+  const openStockModal = (item) => {
+    setSelectedItem(item);
+    setShowStockModal(true);
   };
 
   useEffect(() => {
@@ -257,8 +314,8 @@ const StockBalance = () => {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Value</p>
-              <p className="text-2xl font-bold text-gray-900">${stats.totalValue.toFixed(2)}</p>
+              <p className="text-sm font-medium text-gray-600">Total Value (TSh)</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalValue)}</p>
             </div>
           </div>
         </div>
@@ -373,13 +430,19 @@ const StockBalance = () => {
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center">
-                    Unit Price
+                    Unit Price (TSh)
                     {sortBy === 'unit_price' && (
                       <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
                     )}
                   </div>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total Amount (TSh)
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -413,7 +476,21 @@ const StockBalance = () => {
                       {item.location}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${parseFloat(item.unit_price || 0).toFixed(2)}
+                      {formatCurrency(item.unit_price)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                      {formatCurrency(item.stock * parseFloat(item.unit_price || 0))}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => openStockModal(item)}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-full text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Adjust Stock
+                      </button>
                     </td>
                   </tr>
                 );
@@ -471,43 +548,20 @@ const StockBalance = () => {
       </div>
 
       {/* Recent Transactions */}
-      {stockTransactions.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Stock Transactions</h3>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {stockTransactions.map((transaction, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center">
-                    <div className={`w-3 h-3 rounded-full mr-3 ${
-                      transaction.transaction_type === 'receive' ? 'bg-green-500' :
-                      transaction.transaction_type === 'issue' ? 'bg-red-500' : 'bg-yellow-500'
-                    }`}></div>
-                    <div>
-                      <p className="font-medium text-gray-900">{transaction.item?.name || 'Unknown Item'}</p>
-                      <p className="text-sm text-gray-500">
-                        {transaction.transaction_type === 'receive' ? 'Received' :
-                         transaction.transaction_type === 'issue' ? 'Issued' : 'Adjusted'} 
-                        {' '}{Math.abs(transaction.quantity)} units
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500">
-                      {new Date(transaction.date).toLocaleDateString()}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      {transaction.performed_by?.username || 'System'}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+
+      {/* Stock Adjustment Modal */}
+      <StockAdjustmentModal
+        showStockModal={showStockModal}
+        selectedItem={selectedItem}
+        stockAdjustment={stockAdjustment}
+        setStockAdjustment={setStockAdjustment}
+        handleStockAdjustment={handleStockAdjustment}
+        onClose={() => {
+          setShowStockModal(false);
+          setSelectedItem(null);
+        }}
+      />
+     
     </div>
   );
 };
