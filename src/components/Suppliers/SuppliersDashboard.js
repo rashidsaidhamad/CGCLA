@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GoodReceivingNote from './GoodReceivingNote';
+import SupplierFormModal from './SupplierForm/SupplierFormModal';
+import SuppliersTable from './SuppliersTable/SuppliersTable';
 
 const SuppliersDashboard = () => {
   const navigate = useNavigate();
@@ -18,12 +20,8 @@ const SuppliersDashboard = () => {
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [supplierForm, setSupplierForm] = useState({
     name: '',
-    contact_person: '',
-    email: '',
-    phone: '',
-    address: '',
-    tin_number: '',
-    bank_details: ''
+    contact_details: '',
+    address: ''
   });
 
   // API configuration
@@ -165,9 +163,25 @@ const SuppliersDashboard = () => {
 
   const fetchSuppliers = async () => {
     try {
+      // Debug: Check current user
+      const userData = localStorage.getItem('user');
+      console.log('Raw user data from localStorage:', userData);
+      if (userData) {
+        const user = JSON.parse(userData);
+        console.log('Parsed user data:', user);
+        console.log('User role:', user.role);
+      }
+      
       const response = await fetch(`${API_BASE}/suppliers/suppliers/`, {
         headers: getHeaders(),
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Fetch suppliers error:', errorData);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       if (response.ok) {
         const data = await response.json();
         setSuppliers(data.results || data);
@@ -286,12 +300,8 @@ const SuppliersDashboard = () => {
       setEditingSupplier(null);
       setSupplierForm({
         name: '',
-        contact_person: '',
-        email: '',
-        phone: '',
-        address: '',
-        tin_number: '',
-        bank_details: ''
+        contact_details: '',
+        address: ''
       });
     }
     setShowSupplierForm(true);
@@ -299,13 +309,27 @@ const SuppliersDashboard = () => {
 
   const handleSupplierSubmit = async (e) => {
     e.preventDefault();
+    
+    // Debug: Check current user before making request
+    const userData = localStorage.getItem('user');
+    console.log('User data before supplier submit:', userData);
+    if (userData) {
+      const user = JSON.parse(userData);
+      console.log('User role before submit:', user.role);
+    }
+    
     try {
       setIsLoading(true);
       const url = editingSupplier 
-        ? `${API_BASE}/suppliers/suppliers/${editingSupplier.id}/`
+        ? `${API_BASE}/suppliers/suppliers/${editingSupplier.id}/update/`
         : `${API_BASE}/suppliers/suppliers/`;
       
       const method = editingSupplier ? 'PUT' : 'POST';
+      
+      console.log('Making request to:', url);
+      console.log('Method:', method);
+      console.log('Payload:', supplierForm);
+      console.log('Headers:', getHeaders());
       
       const response = await fetch(url, {
         method,
@@ -313,11 +337,18 @@ const SuppliersDashboard = () => {
         body: JSON.stringify(supplierForm)
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Backend error response:', errorData);
         throw new Error(errorData.error || `Failed to ${editingSupplier ? 'update' : 'create'} supplier`);
       }
 
+      const responseData = await response.json();
+      console.log('Success response:', responseData);
+      
       alert(`Supplier ${editingSupplier ? 'updated' : 'created'} successfully!`);
       setShowSupplierForm(false);
       fetchSuppliers(); // Refresh suppliers list
@@ -334,15 +365,32 @@ const SuppliersDashboard = () => {
       return;
     }
 
+    // Debug: Check current user before making request
+    const userData = localStorage.getItem('user');
+    console.log('User data before supplier delete:', userData);
+    if (userData) {
+      const user = JSON.parse(userData);
+      console.log('User role before delete:', user.role);
+    }
+
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE}/suppliers/suppliers/${supplierId}/`, {
+      const url = `${API_BASE}/suppliers/suppliers/${supplierId}/delete/`;
+      console.log('Making DELETE request to:', url);
+      console.log('Headers:', getHeaders());
+      
+      const response = await fetch(url, {
         method: 'DELETE',
         headers: getHeaders()
       });
 
+      console.log('Delete response status:', response.status);
+      console.log('Delete response ok:', response.ok);
+
       if (!response.ok) {
-        throw new Error('Failed to delete supplier');
+        const errorData = await response.json();
+        console.error('Delete error response:', errorData);
+        throw new Error(errorData.error || 'Failed to delete supplier');
       }
 
       alert('Supplier deleted successfully!');
@@ -932,208 +980,23 @@ const SuppliersDashboard = () => {
               </div>
 
               {/* Suppliers Table */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200 rounded-lg">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Name
-                      </th>
-                      <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Contact Person
-                      </th>
-                      <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Email
-                      </th>
-                      <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Phone
-                      </th>
-                      <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {suppliers.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="px-4 py-12 text-center text-gray-500">
-                          <div className="text-6xl mb-4">🏢</div>
-                          <h3 className="text-lg font-medium text-gray-900 mb-2">No suppliers found</h3>
-                          <p className="text-gray-500 mb-4">Start by adding your first supplier</p>
-                          <button
-                            onClick={() => openSupplierForm()}
-                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                          >
-                            Add First Supplier
-                          </button>
-                        </td>
-                      </tr>
-                    ) : (
-                      suppliers.map((supplier) => (
-                        <tr key={supplier.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                            {supplier.name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {supplier.contact_person || 'N/A'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {supplier.email || 'N/A'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {supplier.phone || 'N/A'}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium space-x-2">
-                            <button
-                              onClick={() => openSupplierForm(supplier)}
-                              className="text-blue-600 hover:text-blue-800 transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => deleteSupplier(supplier.id)}
-                              className="text-red-600 hover:text-red-800 transition-colors"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <SuppliersTable
+                suppliers={suppliers}
+                onEdit={openSupplierForm}
+                onDelete={deleteSupplier}
+                onAddFirst={() => openSupplierForm()}
+              />
 
               {/* Supplier Form Modal */}
-              {showSupplierForm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                  <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-                    <div className="p-6 border-b border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
-                        </h3>
-                        <button
-                          onClick={() => setShowSupplierForm(false)}
-                          className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-
-                    <form onSubmit={handleSupplierSubmit} className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Supplier Name *
-                          </label>
-                          <input
-                            type="text"
-                            name="name"
-                            value={supplierForm.name}
-                            onChange={handleSupplierFormChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Contact Person
-                          </label>
-                          <input
-                            type="text"
-                            name="contact_person"
-                            value={supplierForm.contact_person}
-                            onChange={handleSupplierFormChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            name="email"
-                            value={supplierForm.email}
-                            onChange={handleSupplierFormChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Phone
-                          </label>
-                          <input
-                            type="text"
-                            name="phone"
-                            value={supplierForm.phone}
-                            onChange={handleSupplierFormChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Address
-                          </label>
-                          <textarea
-                            name="address"
-                            value={supplierForm.address}
-                            onChange={handleSupplierFormChange}
-                            rows="3"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            TIN Number
-                          </label>
-                          <input
-                            type="text"
-                            name="tin_number"
-                            value={supplierForm.tin_number}
-                            onChange={handleSupplierFormChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Bank Details
-                          </label>
-                          <input
-                            type="text"
-                            name="bank_details"
-                            value={supplierForm.bank_details}
-                            onChange={handleSupplierFormChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                            placeholder="Bank name, Account number, etc."
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
-                        <button
-                          type="button"
-                          onClick={() => setShowSupplierForm(false)}
-                          className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isLoading}
-                          className="px-6 py-3 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {isLoading ? 'Saving...' : (editingSupplier ? 'Update Supplier' : 'Create Supplier')}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
+              <SupplierFormModal
+                show={showSupplierForm}
+                onClose={() => setShowSupplierForm(false)}
+                onSubmit={handleSupplierSubmit}
+                isLoading={isLoading}
+                editingSupplier={editingSupplier}
+                supplierForm={supplierForm}
+                handleSupplierFormChange={handleSupplierFormChange}
+              />
             </div>
           )}
         </div>
