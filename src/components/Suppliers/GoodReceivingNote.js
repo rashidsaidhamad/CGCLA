@@ -30,6 +30,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
   const [rows, setRows] = useState(initialRows);
   const [form, setForm] = useState({
     poNumber: '',
+    deliveryNumber: '',
     supplierName: '',
     senderDetails: '',
     transport: '',
@@ -87,6 +88,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
     }
     setForm({
       poNumber: '',
+      deliveryNumber: '',
       supplierName: '',
       senderDetails: '',
       transport: '',
@@ -106,7 +108,25 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium">PO Number</label>
-            <input name="poNumber" value={form.poNumber} onChange={handleFormChange} className="w-full border rounded px-2 py-1" required />
+            <input 
+              name="poNumber" 
+              value={form.poNumber} 
+              onChange={handleFormChange} 
+              className="w-full border rounded px-2 py-1" 
+              placeholder="Enter PO Number"
+              required 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Delivery Number</label>
+            <input 
+              name="deliveryNumber" 
+              value={form.deliveryNumber} 
+              onChange={handleFormChange} 
+              className="w-full border rounded px-2 py-1" 
+              placeholder="Enter Delivery Number"
+              required 
+            />
           </div>
           <div>
             <label className="block text-sm font-medium">Supplier Name</label>

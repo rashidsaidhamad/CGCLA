@@ -998,6 +998,10 @@ const SuppliersDashboard = () => {
                             <p className="text-sm text-gray-900">{selectedGrn.po_number || 'N/A'}</p>
                           </div>
                           <div>
+                            <label className="block text-sm font-medium text-gray-500">Delivery Number</label>
+                            <p className="text-sm text-gray-900">{selectedGrn.delivery_number || 'N/A'}</p>
+                          </div>
+                          <div>
                             <label className="block text-sm font-medium text-gray-500">Sender Details</label>
                             <p className="text-sm text-gray-900">{selectedGrn.sender_details || 'N/A'}</p>
                           </div>
