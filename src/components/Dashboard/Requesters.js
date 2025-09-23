@@ -323,8 +323,8 @@ const Requesters = () => {
     // Add title
     doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.text('ITEM REQUESTS REPORT', 105, 20, { align: 'center' });
-    
+    doc.text('ITEMS ISSUED VOUCHER REPORT', 105, 20, { align: 'center' });
+
     // Add subtitle
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
@@ -424,9 +424,9 @@ const Requesters = () => {
     // Signature boxes
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    
-    // Approved by
-    doc.text('Approved by:', 20, finalY + 90);
+
+    // Issued by
+    doc.text('Issued by:', 20, finalY + 90);
     doc.text('Name: ________________________________', 20, finalY + 100);
     doc.text('Signature: ___________________________', 20, finalY + 110);
     doc.text('Date: _______________', 20, finalY + 120);
