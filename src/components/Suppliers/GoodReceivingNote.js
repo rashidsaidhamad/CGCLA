@@ -41,8 +41,54 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
     storekeeper: ''
   });
 
+  const [validationErrors, setValidationErrors] = useState({});
+
   const handleRowChange = (idx, field, value) => {
-    setRows(rows => rows.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+    const updatedRows = rows.map((row, i) => i === idx ? { ...row, [field]: value } : row);
+    setRows(updatedRows);
+
+    // Validate accepted + rejected <= totalReceived
+    if (['accepted', 'rejected', 'totalReceived'].includes(field)) {
+      validateRowQuantities(idx, updatedRows);
+    }
+  };
+
+  const validateRowQuantities = (idx, currentRows) => {
+    const row = currentRows[idx];
+    const totalReceived = parseFloat(row.totalReceived) || 0;
+    const accepted = parseFloat(row.accepted) || 0;
+    const rejected = parseFloat(row.rejected) || 0;
+    const sum = accepted + rejected;
+
+    const newErrors = { ...validationErrors };
+    
+    if (sum > totalReceived && totalReceived > 0) {
+      newErrors[`row_${idx}`] = `Accepted (${accepted}) + Rejected (${rejected}) = ${sum} cannot exceed Total Received (${totalReceived})`;
+    } else {
+      delete newErrors[`row_${idx}`];
+    }
+
+    setValidationErrors(newErrors);
+  };
+
+  const validateAllRows = () => {
+    const errors = {};
+    let hasErrors = false;
+
+    rows.forEach((row, idx) => {
+      const totalReceived = parseFloat(row.totalReceived) || 0;
+      const accepted = parseFloat(row.accepted) || 0;
+      const rejected = parseFloat(row.rejected) || 0;
+      const sum = accepted + rejected;
+
+      if (sum > totalReceived && totalReceived > 0) {
+        errors[`row_${idx}`] = `Row ${idx + 1}: Accepted + Rejected (${sum}) cannot exceed Total Received (${totalReceived})`;
+        hasErrors = true;
+      }
+    });
+
+    setValidationErrors(errors);
+    return !hasErrors;
   };
 
   const addRow = () => {
@@ -83,6 +129,13 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate all rows before submission
+    if (!validateAllRows()) {
+      alert('Please fix the validation errors before submitting the form.');
+      return;
+    }
+
     if (onSubmitNote) {
       onSubmitNote({ ...form, items: rows });
     }
@@ -197,13 +250,15 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => (
-                <tr key={idx}>
+              {rows.map((row, idx) => {
+                const hasError = validationErrors[`row_${idx}`];
+                return (
+                <tr key={idx} className={hasError ? 'bg-red-50 border-red-300' : ''}>
                   <td className="border px-2 py-1 text-center">{row.sn}</td>
                   <td className="border px-2 py-1"><input value={row.description} onChange={e => handleRowChange(idx, 'description', e.target.value)} className="w-full" /></td>
                   <td className="border px-2 py-1">
                     <select 
-                      value={row.unit} 
+                      value={row.unit}
                       onChange={e => handleRowChange(idx, 'unit', e.target.value)} 
                       className="w-full border rounded px-1 py-1"
                     >
@@ -212,16 +267,63 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
                       ))}
                     </select>
                   </td>
-                  <td className="border px-2 py-1"><input value={row.totalReceived} onChange={e => handleRowChange(idx, 'totalReceived', e.target.value)} className="w-full" /></td>
-                  <td className="border px-2 py-1"><input value={row.accepted} onChange={e => handleRowChange(idx, 'accepted', e.target.value)} className="w-full" /></td>
-                  <td className="border px-2 py-1"><input value={row.rejected} onChange={e => handleRowChange(idx, 'rejected', e.target.value)} className="w-full" /></td>
+                  <td className="border px-2 py-1">
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={row.totalReceived} 
+                      onChange={e => handleRowChange(idx, 'totalReceived', e.target.value)} 
+                      className={`w-full ${hasError ? 'border-red-500 bg-red-50' : ''}`} 
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="border px-2 py-1">
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={row.accepted} 
+                      onChange={e => handleRowChange(idx, 'accepted', e.target.value)} 
+                      className={`w-full ${hasError ? 'border-red-500 bg-red-50' : ''}`} 
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="border px-2 py-1">
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={row.rejected} 
+                      onChange={e => handleRowChange(idx, 'rejected', e.target.value)} 
+                      className={`w-full ${hasError ? 'border-red-500 bg-red-50' : ''}`} 
+                      placeholder="0"
+                    />
+                  </td>
                   <td className="border px-2 py-1"><input type="number" step="0.01" min="0" value={row.unitPrice} onChange={e => handleRowChange(idx, 'unitPrice', e.target.value)} className="w-full" placeholder="0.00" /></td>
                   <td className="border px-2 py-1"><input value={row.amount} onChange={e => handleRowChange(idx, 'amount', e.target.value)} className="w-full" /></td>
                   <td className="border px-2 py-1"><input value={row.reason} onChange={e => handleRowChange(idx, 'reason', e.target.value)} className="w-full" /></td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
+          
+          {/* Validation Error Messages */}
+          {Object.keys(validationErrors).length > 0 && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-lg">
+              <h4 className="text-red-800 font-medium mb-2">⚠️ Please fix the following errors:</h4>
+              <ul className="text-red-700 text-sm space-y-1">
+                {Object.values(validationErrors).map((error, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="text-red-500 mr-2">•</span>
+                    <span>{error}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 text-sm text-red-600">
+                <strong>Note:</strong> The sum of Accepted and Rejected items should not exceed the Total Received for each row.
+              </div>
+            </div>
+          )}
+          
           <button type="button" onClick={addRow} className="mt-2 px-3 py-1 bg-blue-500 text-white rounded">Add Row</button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -235,7 +337,17 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
           </div>
         </div>
         <div className="flex justify-end">
-          <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">Submit</button>
+          <button 
+            type="submit" 
+            className={`px-6 py-2 text-white rounded transition-colors ${
+              Object.keys(validationErrors).length > 0 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+            disabled={Object.keys(validationErrors).length > 0}
+          >
+            {Object.keys(validationErrors).length > 0 ? 'Fix Errors to Submit' : 'Submit'}
+          </button>
         </div>
       </form>
     </div>
