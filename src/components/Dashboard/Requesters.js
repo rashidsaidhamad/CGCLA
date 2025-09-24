@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { saveAs } from 'file-saver';
+import DownloadSelectedPDF from '../DownloadSelectedPDF/DownloadSelectedPDF';
 
 const Requesters = () => {
   const [requests, setRequests] = useState([]);
@@ -10,8 +7,8 @@ const Requesters = () => {
   const [departments, setDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedDateFilter, setSelectedDateFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRequests, setSelectedRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,6 +79,50 @@ const Requesters = () => {
     }
   };
 
+  // Handle individual request selection
+  const handleRequestSelection = (request) => {
+    setSelectedRequests(prev => {
+      const isSelected = prev.some(r => r.id === request.id);
+      if (isSelected) {
+        // Remove from selection
+        return prev.filter(r => r.id !== request.id);
+      } else {
+        // Add to selection
+        return [...prev, request];
+      }
+    });
+  };
+
+  // Handle select all requests on current page
+  const handleSelectAllOnPage = () => {
+    const allPageSelected = currentRequests.every(request => 
+      selectedRequests.some(selected => selected.id === request.id)
+    );
+    
+    if (allPageSelected) {
+      // Deselect all on current page
+      setSelectedRequests(prev => 
+        prev.filter(selected => !currentRequests.some(current => current.id === selected.id))
+      );
+    } else {
+      // Select all on current page
+      const newSelections = currentRequests.filter(request => 
+        !selectedRequests.some(selected => selected.id === request.id)
+      );
+      setSelectedRequests(prev => [...prev, ...newSelections]);
+    }
+  };
+
+  // Clear all selections
+  const clearAllSelections = () => {
+    setSelectedRequests([]);
+  };
+
+  // Check if a request is selected
+  const isRequestSelected = (requestId) => {
+    return selectedRequests.some(r => r.id === requestId);
+  };
+
   useEffect(() => {
     fetchRequests();
     fetchInventoryItems();
@@ -139,7 +180,7 @@ const Requesters = () => {
   };
 
   // Handle approve with feedback and quantity selection
-  const handleApprove = (requestId) => {
+  const handleApprove = async (requestId) => {
     const request = requests.find(req => req.id === requestId);
     if (!request) {
       alert('Request not found!');
@@ -148,6 +189,40 @@ const Requesters = () => {
 
     const requestedQty = request.quantity;
     const itemName = getItemName(request.item);
+    
+    // Get item stock information
+    let availableStock = 0;
+    let itemId = null;
+    
+    if (typeof request.item === 'object' && request.item !== null) {
+      itemId = request.item.id;
+      availableStock = request.item.stock || request.item.current_stock || request.item.available || 0;
+    } else {
+      itemId = request.item;
+      const inventoryItem = inventoryItems.find(item => item.id === itemId);
+      availableStock = inventoryItem ? (inventoryItem.stock || inventoryItem.current_stock || inventoryItem.available || 0) : 0;
+    }
+
+    // If we couldn't get stock info from the request or inventory cache, fetch it fresh
+    if (availableStock === 0 && itemId) {
+      try {
+        const response = await fetch(`${API_BASE}/inventory/items/${itemId}/`, {
+          headers: getHeaders(),
+        });
+        if (response.ok) {
+          const itemData = await response.json();
+          availableStock = itemData.stock || itemData.current_stock || itemData.available || 0;
+        }
+      } catch (error) {
+        console.error('Error fetching item stock:', error);
+      }
+    }
+
+    // Check if there's any stock available
+    if (availableStock === 0) {
+      alert(`Cannot approve request: No stock available for ${itemName}. Current stock: 0 units.`);
+      return;
+    }
 
     // Create a custom dialog for quantity and feedback input
     const dialog = document.createElement('div');
@@ -187,6 +262,14 @@ const Requesters = () => {
           <p style="color: #6b7280; margin-bottom: 8px;">
             <strong>Requested Quantity:</strong> ${requestedQty} units
           </p>
+          <p style="color: #6b7280; margin-bottom: 8px;">
+            <strong>Available Stock:</strong> <span id="availableStock" style="color: ${availableStock < requestedQty ? '#ef4444' : '#10b981'}; font-weight: bold;">${availableStock} units</span>
+          </p>
+          ${availableStock < requestedQty ? `
+            <p style="color: #4455efff; margin-bottom: 8px; font-size: 14px; background: #fef2f2; padding: 8px; border-radius: 4px; border: 1px solid #fecaca;">
+               <strong>Warning:</strong> Requested quantity exceeds available stock!
+            </p>
+          ` : ''}
         </div>
         
         <div style="margin-bottom: 16px;">
@@ -201,8 +284,8 @@ const Requesters = () => {
             type="number" 
             id="approvedQuantity"
             min="1"
-            max="${requestedQty}"
-            value="${requestedQty}"
+            max="${Math.min(requestedQty, availableStock)}"
+            value="${Math.min(requestedQty, availableStock)}"
             style="
               width: 100%;
               padding: 8px 12px;
@@ -215,7 +298,7 @@ const Requesters = () => {
             font-size: 12px;
             color: #6b7280;
             margin-top: 4px;
-          ">Maximum: ${requestedQty} units</p>
+          ">Maximum: ${Math.min(requestedQty, availableStock)} units (limited by ${availableStock < requestedQty ? 'available stock' : 'requested quantity'})</p>
         </div>
         
         <div style="margin-bottom: 20px;">
@@ -264,12 +347,12 @@ const Requesters = () => {
               padding: 8px 16px;
               border: none;
               border-radius: 6px;
-              background: #10b981;
+              background: ${availableStock < requestedQty ? '#f59e0b' : '#10b981'};
               color: white;
               font-size: 14px;
               cursor: pointer;
             "
-          >✅ Approve</button>
+          >${availableStock < requestedQty ? '⚠️ Partial Approve' : '✅ Approve'}</button>
         </div>
       </div>
     `;
@@ -285,10 +368,19 @@ const Requesters = () => {
     // Validate quantity input
     qtyInput.addEventListener('input', () => {
       const value = parseInt(qtyInput.value);
-      if (value > requestedQty) {
-        qtyInput.value = requestedQty;
+      const maxAllowed = Math.min(requestedQty, availableStock);
+      
+      if (value > maxAllowed) {
+        qtyInput.value = maxAllowed;
+        qtyInput.style.borderColor = '#ef4444';
+        qtyInput.style.backgroundColor = '#fef2f2';
       } else if (value < 1) {
         qtyInput.value = 1;
+        qtyInput.style.borderColor = '#ef4444';
+        qtyInput.style.backgroundColor = '#fef2f2';
+      } else {
+        qtyInput.style.borderColor = '#d1d5db';
+        qtyInput.style.backgroundColor = 'white';
       }
     });
 
@@ -299,6 +391,7 @@ const Requesters = () => {
     confirmBtn.addEventListener('click', () => {
       const approvedQuantity = parseInt(qtyInput.value);
       const feedback = feedbackInput.value.trim();
+      const maxAllowed = Math.min(requestedQty, availableStock);
 
       if (!approvedQuantity || approvedQuantity < 1) {
         alert('Please enter a valid quantity to approve!');
@@ -307,6 +400,16 @@ const Requesters = () => {
 
       if (approvedQuantity > requestedQty) {
         alert(`Cannot approve more than requested quantity (${requestedQty})`);
+        return;
+      }
+
+      if (approvedQuantity > availableStock) {
+        alert(`Cannot approve more than available stock (${availableStock} units available)`);
+        return;
+      }
+
+      if (approvedQuantity > maxAllowed) {
+        alert(`Cannot approve ${approvedQuantity} units. Maximum allowed: ${maxAllowed} units`);
         return;
       }
 
@@ -344,291 +447,6 @@ const Requesters = () => {
     return item ? item.name : `Item ID: ${itemData}`;
   };
 
-  // Date filtering function
-  const filterByDate = (request) => {
-    if (selectedDateFilter === 'all') return true;
-    
-    const requestDate = new Date(request.created_at);
-    const now = new Date();
-    
-    switch (selectedDateFilter) {
-      case 'week':
-        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return requestDate >= oneWeekAgo;
-      case 'month':
-        const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        return requestDate >= oneMonthAgo;
-      case 'year':
-        const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-        return requestDate >= oneYearAgo;
-      default:
-        return true;
-    }
-  };
-
-  // Export functions
-  const exportToExcel = () => {
-    const exportData = sortedRequests.map(request => {
-      const user = request.requester || request.user;
-      const dept = user?.department || request.department;
-      return {
-        'Request ID': request.id,
-        'Requester': user?.first_name && user?.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : user?.username || user?.email || 'Unknown User',
-        'Department': dept?.name || 'Unknown Department',
-        'Item': getItemName(request.item),
-        'Requested Quantity': request.quantity,
-        'Approved Quantity': request.approved_quantity || '',
-        'Status': request.status.charAt(0).toUpperCase() + request.status.slice(1),
-        'Feedback': request.feedback || '',
-        'Date Submitted': new Date(request.created_at).toLocaleDateString(),
-        'Time Submitted': new Date(request.created_at).toLocaleTimeString()
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Requests');
-    
-    const dateStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `requests_report_${dateStr}.xlsx`);
-  };
-
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    
-    // Add title
-    doc.setFontSize(20);
-    doc.text('Requests Report', 20, 20);
-    
-    // Add date
-    doc.setFontSize(12);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 30);
-    
-    // Prepare table data
-    const tableData = sortedRequests.map(request => {
-      const user = request.requester || request.user;
-      const dept = user?.department || request.department;
-      return [
-        request.id,
-        user?.first_name && user?.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : user?.username || user?.email || 'Unknown User',
-        dept?.name || 'Unknown Department',
-        getItemName(request.item),
-        request.quantity,
-        request.status.charAt(0).toUpperCase() + request.status.slice(1),
-        new Date(request.created_at).toLocaleDateString()
-      ];
-    });
-
-    // Try to use autoTable, fallback to manual table if not available
-    try {
-      if (doc.autoTable) {
-        doc.autoTable({
-          head: [['ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Date']],
-          body: tableData,
-          startY: 40,
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [59, 130, 246] }
-        });
-      } else {
-        throw new Error('autoTable not available');
-      }
-    } catch (error) {
-      // Fallback: Manual table creation
-      console.log('Using manual table creation for simple PDF:', error);
-      doc.setFontSize(8);
-      
-      // Table header
-      doc.setFont('helvetica', 'bold');
-      doc.text('ID', 20, 50);
-      doc.text('Requester', 35, 50);
-      doc.text('Department', 80, 50);
-      doc.text('Item', 120, 50);
-      doc.text('Qty', 160, 50);
-      doc.text('Status', 175, 50);
-      
-      // Table data
-      doc.setFont('helvetica', 'normal');
-      let yPos = 60;
-      tableData.slice(0, 25).forEach((row, index) => { // Limit to 25 rows to fit on page
-        doc.text(String(row[0]), 20, yPos);
-        doc.text(String(row[1]).substring(0, 15), 35, yPos); // Truncate long names
-        doc.text(String(row[2]).substring(0, 12), 80, yPos);
-        doc.text(String(row[3]).substring(0, 12), 120, yPos);
-        doc.text(String(row[4]), 160, yPos);
-        doc.text(String(row[5]), 175, yPos);
-        yPos += 8;
-      });
-    }
-    
-    const dateStr = new Date().toISOString().split('T')[0];
-    doc.save(`requests_report_${dateStr}.pdf`);
-  };
-
-  const exportToCSV = () => {
-    const csvData = sortedRequests.map(request => {
-      const user = request.requester || request.user;
-      const dept = user?.department || request.department;
-      return [
-        request.id,
-        user?.first_name && user?.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : user?.username || user?.email || 'Unknown User',
-        dept?.name || 'Unknown Department',
-        getItemName(request.item),
-        request.quantity,
-        request.status.charAt(0).toUpperCase() + request.status.slice(1),
-        request.feedback || '',
-        new Date(request.created_at).toLocaleDateString(),
-        new Date(request.created_at).toLocaleTimeString()
-      ];
-    });
-
-    const headers = ['Request ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Feedback', 'Date Submitted', 'Time Submitted'];
-    const csvContent = [headers, ...csvData].map(row => 
-      row.map(field => `"${field}"`).join(',')
-    ).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const dateStr = new Date().toISOString().split('T')[0];
-    saveAs(blob, `requests_report_${dateStr}.csv`);
-  };
-
-  // Export to PDF with signature placeholder
-  const exportToPDFWithSignature = () => {
-    const doc = new jsPDF();
-    
-    // Add title
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('ITEMS ISSUED VOUCHER REPORT', 105, 20, { align: 'center' });
-
-    // Add subtitle
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 30, { align: 'center' });
-    
-    // Add summary statistics
-    const stats = {
-      totalRequests: requests.length,
-      pendingRequests: requests.filter(req => req.status === 'pending').length,
-      approvedRequests: requests.filter(req => req.status === 'approved').length,
-      rejectedRequests: requests.filter(req => req.status === 'rejected').length
-    };
-    
-    doc.setFontSize(10);
-    doc.text(`Total Requests: ${stats.totalRequests}`, 20, 45);
-    doc.text(`Pending: ${stats.pendingRequests}`, 20, 52);
-    doc.text(`Approved: ${stats.approvedRequests}`, 80, 45);
-    doc.text(`Rejected: ${stats.rejectedRequests}`, 80, 52);
-    
-    // Prepare table data
-    const tableData = sortedRequests.map(request => {
-      const user = request.requester || request.user;
-      const dept = user?.department || request.department;
-      return [
-        request.id,
-        user?.first_name && user?.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : user?.username || user?.email || 'Unknown User',
-        dept?.name || 'Unknown Department',
-        getItemName(request.item),
-        `${request.quantity}${request.approved_quantity ? `/${request.approved_quantity}` : ''}`,
-        request.status.charAt(0).toUpperCase() + request.status.slice(1),
-        new Date(request.created_at).toLocaleDateString()
-      ];
-    });
-
-    // Try to use autoTable, fallback to manual table if not available
-    let finalY = 65;
-    try {
-      if (doc.autoTable) {
-        doc.autoTable({
-          head: [['ID', 'Requester', 'Department', 'Item', 'Req/App Qty', 'Status', 'Date']],
-          body: tableData,
-          startY: 65,
-          styles: { 
-            fontSize: 8,
-            cellPadding: 3
-          },
-          headStyles: { 
-            fillColor: [59, 130, 246],
-            textColor: 255,
-            fontStyle: 'bold'
-          },
-          alternateRowStyles: {
-            fillColor: [245, 245, 245]
-          }
-        });
-        finalY = doc.lastAutoTable.finalY || 200;
-      } else {
-        throw new Error('autoTable not available');
-      }
-    } catch (error) {
-      // Fallback: Manual table creation
-      console.log('Using manual table creation:', error);
-      doc.setFontSize(8);
-      
-      // Table header
-      doc.setFont('helvetica', 'bold');
-      doc.text('ID', 20, 70);
-      doc.text('Requester', 35, 70);
-      doc.text('Department', 80, 70);
-      doc.text('Item', 120, 70);
-      doc.text('Req/App', 160, 70);
-      doc.text('Status', 175, 70);
-      
-      // Table data
-      doc.setFont('helvetica', 'normal');
-      let yPos = 80;
-      tableData.slice(0, 20).forEach((row, index) => { // Limit to 20 rows to fit on page
-        doc.text(String(row[0]), 20, yPos);
-        doc.text(String(row[1]).substring(0, 15), 35, yPos); // Truncate long names
-        doc.text(String(row[2]).substring(0, 12), 80, yPos);
-        doc.text(String(row[3]).substring(0, 12), 120, yPos);
-        doc.text(String(row[4]), 160, yPos);
-        doc.text(String(row[5]), 175, yPos);
-        yPos += 8;
-      });
-      
-      finalY = yPos + 10;
-    }
-    
-    // Add signature section
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AUTHORIZATION SIGNATURES', 20, finalY + 20);
-    
-    // Signature boxes
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-
-    // Issued by
-    doc.text('Issued by:', 20, finalY + 90);
-    doc.text('Name: ________________________________', 20, finalY + 100);
-    doc.text('Signature: ___________________________', 20, finalY + 110);
-    doc.text('Date: _______________', 20, finalY + 120);
-    
-    // Received by
-    doc.text('Received by:', 110, finalY + 90);
-    doc.text('Name: ________________________________', 110, finalY + 100);
-    doc.text('Signature: ___________________________', 110, finalY + 110);
-    doc.text('Date: _______________', 110, finalY + 120);
-    
-    // Add footer note
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.text('physical signatures', 105, finalY + 140, { align: 'center' });
-    doc.text('Generated by CGCLA Warehouse Management System', 105, finalY + 148, { align: 'center' });
-    
-    // Save the PDF
-    const dateStr = new Date().toISOString().split('T')[0];
-    doc.save(`requests_report_with_signature_${dateStr}.pdf`);
-  };
-
   // Filter requests
   const filteredRequests = requests.filter(request => {
     const user = request.requester || request.user;
@@ -644,9 +462,8 @@ const Requesters = () => {
                              dept?.id === parseInt(selectedDepartment);
     
     const matchesStatus = selectedStatus === 'all' || request.status === selectedStatus;
-    const matchesDate = filterByDate(request);
     
-    return matchesSearch && matchesDepartment && matchesStatus && matchesDate;
+    return matchesSearch && matchesDepartment && matchesStatus;
   });
 
   // Sort requests by creation date (newest first)
@@ -789,7 +606,7 @@ const Requesters = () => {
 
       {/* Search and Filter */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <div className="relative lg:col-span-2">
             <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -826,51 +643,96 @@ const Requesters = () => {
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
-
-          <select
-            value={selectedDateFilter}
-            onChange={(e) => setSelectedDateFilter(e.target.value)}
-            className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Time</option>
-            <option value="week">Past Week</option>
-            <option value="month">Past Month</option>
-            <option value="year">Past Year</option>
-          </select>
         </div>
         
-        {/* Export Buttons */}
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            onClick={exportToExcel}
-            className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
-          >
-            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-            Export to Excel
-          </button>
-
-          <button
-            onClick={exportToPDFWithSignature}
-            className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
-          >
-            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-            </svg>
-            📝 Export PDF with Signature
-          </button>
-        </div>
+        {/* Clear Filters Button */}
+        {(selectedDepartment !== 'all' || selectedStatus !== 'all' || searchTerm) && (
+          <div className="mt-4 flex items-center gap-2">
+            <span className="text-sm text-gray-600">Active filters:</span>
+            {selectedDepartment !== 'all' && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Department: {departments.find(d => d.id === parseInt(selectedDepartment))?.name}
+              </span>
+            )}
+            {selectedStatus !== 'all' && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Status: {selectedStatus}
+              </span>
+            )}
+            {searchTerm && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                Search: "{searchTerm}"
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setSelectedDepartment('all');
+                setSelectedStatus('all');
+                setSearchTerm('');
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700 underline"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
         
         <div className="mt-4 text-sm text-gray-500">
           {sortedRequests.length} request{sortedRequests.length !== 1 ? 's' : ''} found
+        </div>
+        
+        {/* Selection Controls and Download */}
+        <div className="mt-4 flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleSelectAllOnPage}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              {currentRequests.every(request => isRequestSelected(request.id)) ? 'Deselect All' : 'Select All'} on Page
+            </button>
+            
+            {selectedRequests.length > 0 && (
+              <button
+                onClick={clearAllSelections}
+                className="text-sm text-gray-600 hover:text-gray-700 font-medium"
+              >
+                Clear All ({selectedRequests.length})
+              </button>
+            )}
+            
+            <span className="text-sm text-gray-600">
+              {selectedRequests.length} request{selectedRequests.length !== 1 ? 's' : ''} selected
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <DownloadSelectedPDF
+              selectedRequests={selectedRequests}
+              inventoryItems={inventoryItems}
+              departments={departments}
+              onDownload={(count) => {
+                alert(`Successfully downloaded PDF with ${count} requests!`);
+              }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Requests List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Item Requests</h3>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={currentRequests.length > 0 && currentRequests.every(request => isRequestSelected(request.id))}
+              onChange={handleSelectAllOnPage}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <h3 className="text-lg font-semibold text-gray-900">Item Requests</h3>
+          </div>
+          <span className="text-sm text-gray-500">
+            {selectedRequests.length} of {currentRequests.length} selected
+          </span>
         </div>
         
         {currentRequests.length === 0 ? (
@@ -901,6 +763,16 @@ const Requesters = () => {
                 <div key={request.id} className="p-6 hover:bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
+                      {/* Selection Checkbox */}
+                      <div className="flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={isRequestSelected(request.id)}
+                          onChange={() => handleRequestSelection(request)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                      </div>
+                      
                       {/* Requester Avatar */}
                       <div className="flex-shrink-0">
                         <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center">

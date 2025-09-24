@@ -410,7 +410,7 @@ const MyRequests = ({ user }) => {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{request.itemName}</p>
                     <p className="text-sm text-gray-600">{request.category}</p>
@@ -418,11 +418,6 @@ const MyRequests = ({ user }) => {
                   <div>
                     <p className="text-sm text-gray-600">Quantity</p>
                     <p className="text-sm font-medium text-gray-900">{request.quantity} {request.unit}</p>
-                  </div>
-                  <div>
-                    <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                      View Details →
-                    </button>
                   </div>
                 </div>
                 

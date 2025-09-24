@@ -20,6 +20,15 @@ const NewRequest = ({ user }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
 
+  // Clear all cached data and validation on component mount
+  useEffect(() => {
+    // Clear any cached validation or form data
+    localStorage.removeItem('newRequestFormData');
+    localStorage.removeItem('newRequestItems');
+    localStorage.removeItem('validationErrors');
+    localStorage.removeItem('stockValidation');
+  }, []);
+
   // Load saved form data from localStorage on component mount
   useEffect(() => {
     const savedFormData = localStorage.getItem('newRequestFormData');
