@@ -45,6 +45,7 @@ const StockBalance = () => {
       }
       
       const data = await response.json();
+      console.log('Inventory items data:', data.results?.[0] || data[0]); // Debug log
       setInventoryItems(data.results || data);
       setError(null);
     } catch (error) {
@@ -158,6 +159,12 @@ const StockBalance = () => {
       if (sortBy === 'category') {
         aValue = a.category?.name || '';
         bValue = b.category?.name || '';
+      }
+      
+      // Handle date sorting
+      if (sortBy === 'last_updated') {
+        aValue = new Date(a.last_updated || 0);
+        bValue = new Date(b.last_updated || 0);
       }
       
       if (typeof aValue === 'string') {
@@ -441,6 +448,19 @@ const StockBalance = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total Amount (TSh)
                 </th>
+                <th 
+                  onClick={() => handleSort('last_updated')}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center">
+                    Last Updated
+                    {sortBy === 'last_updated' && (
+                      <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -480,6 +500,16 @@ const StockBalance = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                       {formatCurrency(item.stock * parseFloat(item.unit_price || 0))}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div>
+                        <div className="text-gray-900">
+                          {item.last_updated ? new Date(item.last_updated).toLocaleDateString() : 'N/A'}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {item.last_updated ? new Date(item.last_updated).toLocaleTimeString() : ''}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
@@ -546,8 +576,6 @@ const StockBalance = () => {
           </div>
         )}
       </div>
-
-      {/* Recent Transactions */}
 
       {/* Stock Adjustment Modal */}
       <StockAdjustmentModal

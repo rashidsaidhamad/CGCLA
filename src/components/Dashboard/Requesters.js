@@ -89,18 +89,20 @@ const Requesters = () => {
   }, []);
 
   // Handle request approval
-  const approveRequest = async (requestId, feedback = '') => {
+  const approveRequest = async (requestId, feedback = '', approvedQuantity = null) => {
     try {
       const response = await fetch(`${API_BASE}/requests/${requestId}/approve/`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ 
-          feedback: feedback
+          feedback: feedback,
+          approved_quantity: approvedQuantity
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       // Refresh requests list
@@ -136,10 +138,188 @@ const Requesters = () => {
     }
   };
 
-  // Handle approve with feedback
+  // Handle approve with feedback and quantity selection
   const handleApprove = (requestId) => {
-    const feedback = prompt('Add approval feedback (optional):');
-    approveRequest(requestId, feedback || '');
+    const request = requests.find(req => req.id === requestId);
+    if (!request) {
+      alert('Request not found!');
+      return;
+    }
+
+    const requestedQty = request.quantity;
+    const itemName = getItemName(request.item);
+
+    // Create a custom dialog for quantity and feedback input
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    `;
+    
+    dialog.innerHTML = `
+      <div style="
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        max-width: 500px;
+        width: 90%;
+      ">
+        <h3 style="
+          font-size: 18px;
+          font-weight: 600;
+          color: #1f2937;
+          margin-bottom: 16px;
+        ">Approve Request</h3>
+        
+        <div style="margin-bottom: 16px;">
+          <p style="color: #6b7280; margin-bottom: 8px;">
+            <strong>Item:</strong> ${itemName}
+          </p>
+          <p style="color: #6b7280; margin-bottom: 8px;">
+            <strong>Requested Quantity:</strong> ${requestedQty} units
+          </p>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+          <label style="
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 4px;
+          ">Quantity to Approve: *</label>
+          <input 
+            type="number" 
+            id="approvedQuantity"
+            min="1"
+            max="${requestedQty}"
+            value="${requestedQty}"
+            style="
+              width: 100%;
+              padding: 8px 12px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 14px;
+            "
+          />
+          <p style="
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+          ">Maximum: ${requestedQty} units</p>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <label style="
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 4px;
+          ">Approval Feedback:</label>
+          <textarea 
+            id="approvalFeedback"
+            placeholder="Optional feedback for the requester..."
+            style="
+              width: 100%;
+              padding: 8px 12px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              font-size: 14px;
+              min-height: 80px;
+              resize: vertical;
+            "
+          ></textarea>
+        </div>
+        
+        <div style="
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+        ">
+          <button 
+            id="cancelBtn"
+            style="
+              padding: 8px 16px;
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              background: white;
+              color: #374151;
+              font-size: 14px;
+              cursor: pointer;
+            "
+          >Cancel</button>
+          <button 
+            id="confirmBtn"
+            style="
+              padding: 8px 16px;
+              border: none;
+              border-radius: 6px;
+              background: #10b981;
+              color: white;
+              font-size: 14px;
+              cursor: pointer;
+            "
+          >✅ Approve</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    // Handle dialog events
+    const qtyInput = dialog.querySelector('#approvedQuantity');
+    const feedbackInput = dialog.querySelector('#approvalFeedback');
+    const cancelBtn = dialog.querySelector('#cancelBtn');
+    const confirmBtn = dialog.querySelector('#confirmBtn');
+
+    // Validate quantity input
+    qtyInput.addEventListener('input', () => {
+      const value = parseInt(qtyInput.value);
+      if (value > requestedQty) {
+        qtyInput.value = requestedQty;
+      } else if (value < 1) {
+        qtyInput.value = 1;
+      }
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      document.body.removeChild(dialog);
+    });
+
+    confirmBtn.addEventListener('click', () => {
+      const approvedQuantity = parseInt(qtyInput.value);
+      const feedback = feedbackInput.value.trim();
+
+      if (!approvedQuantity || approvedQuantity < 1) {
+        alert('Please enter a valid quantity to approve!');
+        return;
+      }
+
+      if (approvedQuantity > requestedQty) {
+        alert(`Cannot approve more than requested quantity (${requestedQty})`);
+        return;
+      }
+
+      document.body.removeChild(dialog);
+      approveRequest(requestId, feedback, approvedQuantity);
+    });
+
+    // Close dialog on outside click
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        document.body.removeChild(dialog);
+      }
+    });
   };
 
   // Handle reject with reason
@@ -198,7 +378,8 @@ const Requesters = () => {
           : user?.username || user?.email || 'Unknown User',
         'Department': dept?.name || 'Unknown Department',
         'Item': getItemName(request.item),
-        'Quantity': request.quantity,
+        'Requested Quantity': request.quantity,
+        'Approved Quantity': request.approved_quantity || '',
         'Status': request.status.charAt(0).toUpperCase() + request.status.slice(1),
         'Feedback': request.feedback || '',
         'Date Submitted': new Date(request.created_at).toLocaleDateString(),
@@ -355,7 +536,7 @@ const Requesters = () => {
           : user?.username || user?.email || 'Unknown User',
         dept?.name || 'Unknown Department',
         getItemName(request.item),
-        request.quantity,
+        `${request.quantity}${request.approved_quantity ? `/${request.approved_quantity}` : ''}`,
         request.status.charAt(0).toUpperCase() + request.status.slice(1),
         new Date(request.created_at).toLocaleDateString()
       ];
@@ -366,7 +547,7 @@ const Requesters = () => {
     try {
       if (doc.autoTable) {
         doc.autoTable({
-          head: [['ID', 'Requester', 'Department', 'Item', 'Quantity', 'Status', 'Date']],
+          head: [['ID', 'Requester', 'Department', 'Item', 'Req/App Qty', 'Status', 'Date']],
           body: tableData,
           startY: 65,
           styles: { 
@@ -397,7 +578,7 @@ const Requesters = () => {
       doc.text('Requester', 35, 70);
       doc.text('Department', 80, 70);
       doc.text('Item', 120, 70);
-      doc.text('Qty', 160, 70);
+      doc.text('Req/App', 160, 70);
       doc.text('Status', 175, 70);
       
       // Table data
@@ -669,16 +850,6 @@ const Requesters = () => {
             </svg>
             Export to Excel
           </button>
-          
-          <button
-            onClick={exportToCSV}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-          >
-            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
-            Export to CSV
-          </button>
 
           <button
             onClick={exportToPDFWithSignature}
@@ -767,6 +938,14 @@ const Requesters = () => {
                           <p className="text-sm text-gray-600">
                             Requesting <span className="font-medium">{request.quantity}</span> units of{' '}
                             <span className="font-medium">{getItemName(request.item)}</span>
+                            {request.approved_quantity && request.status === 'approved' && (
+                              <span className="text-green-600">
+                                {' '}• Approved: <span className="font-medium">{request.approved_quantity}</span> units
+                                {request.approved_quantity < request.quantity && (
+                                  <span className="text-amber-600"> (Partial)</span>
+                                )}
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-gray-400 mt-1">
                             Submitted on {new Date(request.created_at).toLocaleDateString()} at{' '}

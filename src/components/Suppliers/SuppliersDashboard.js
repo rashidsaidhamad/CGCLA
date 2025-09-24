@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import GoodReceivingNote from './GoodReceivingNote';
 import SupplierFormModal from './SupplierForm/SupplierFormModal';
 import SuppliersTable from './SuppliersTable/SuppliersTable';
+import GRNPdfDownload from './GRNPdfDownload';
 
 const SuppliersDashboard = () => {
   const navigate = useNavigate();
@@ -263,7 +264,7 @@ const SuppliersDashboard = () => {
         location: 'Warehouse',
         min_stock: 10,
         max_stock: 1000,
-        unit_price: item.amount ? parseFloat(item.amount) / parseInt(item.accepted) : 0,
+        unit_price: item.unit_price ? parseFloat(item.unit_price) : (item.amount ? parseFloat(item.amount) / parseInt(item.accepted) : 0),
         expiry_date: ''
       }))
     });
@@ -978,14 +979,22 @@ const SuppliersDashboard = () => {
                         <h3 className="text-xl font-semibold text-gray-900">
                           GRN Details - #{selectedGrn.id}
                         </h3>
-                        <button
-                          onClick={() => setSelectedGrn(null)}
-                          className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center space-x-3">
+                          <GRNPdfDownload 
+                            grn={selectedGrn} 
+                            onDownload={(fileName) => {
+                              console.log(`PDF downloaded: ${fileName}`);
+                            }} 
+                          />
+                          <button
+                            onClick={() => setSelectedGrn(null)}
+                            className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -1006,12 +1015,12 @@ const SuppliersDashboard = () => {
                             <p className="text-sm text-gray-900">{selectedGrn.sender_details || 'N/A'}</p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-500">Delivery Method</label>
-                            <p className="text-sm text-gray-900">{selectedGrn.delivery_method || 'N/A'}</p>
-                          </div>
-                          <div>
                             <label className="block text-sm font-medium text-gray-500">Transport</label>
                             <p className="text-sm text-gray-900">{selectedGrn.transport || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-500">Registration Plate</label>
+                            <p className="text-sm text-gray-900">{selectedGrn.registration_plate || 'N/A'}</p>
                           </div>
                         </div>
                         <div className="space-y-4">
@@ -1024,12 +1033,18 @@ const SuppliersDashboard = () => {
                             <p className="text-sm text-gray-900">{selectedGrn.time_received || 'N/A'}</p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-500">Registration Plate</label>
-                            <p className="text-sm text-gray-900">{selectedGrn.registration_plate || 'N/A'}</p>
+                            <label className="block text-sm font-medium text-gray-500">Person Delivering</label>
+                            <p className="text-sm text-gray-900">{selectedGrn.person_delivering || 'N/A'}</p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-500">Container/Seal No.</label>
-                            <p className="text-sm text-gray-900">{selectedGrn.container_seal_no || 'N/A'}</p>
+                            <label className="block text-sm font-medium text-gray-500">Storekeeper</label>
+                            <p className="text-sm text-gray-900">{selectedGrn.storekeeper || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-500">Status</label>
+                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(selectedGrn.status)}`}>
+                              {selectedGrn.status || 'Pending'}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1060,6 +1075,9 @@ const SuppliersDashboard = () => {
                                   Rejected
                                 </th>
                                 <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Unit Price (TSh)
+                                </th>
+                                <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                   Amount
                                 </th>
                                 <th className="border-b border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1079,8 +1097,9 @@ const SuppliersDashboard = () => {
                                   <td className="px-4 py-3 text-sm text-gray-900">{item.total_received}</td>
                                   <td className="px-4 py-3 text-sm font-medium text-green-600">{item.accepted}</td>
                                   <td className="px-4 py-3 text-sm font-medium text-red-600">{item.rejected}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{item.unit_price ? `${parseFloat(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                   <td className="px-4 py-3 text-sm text-gray-900">{item.amount}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-900">{item.reason || '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{item.rejected_reason || '-'}</td>
                                   <td className="px-4 py-3 text-sm">
                                     {item.accepted > 0 && (
                                       <button
@@ -1094,7 +1113,7 @@ const SuppliersDashboard = () => {
                                 </tr>
                               )) || (
                                 <tr>
-                                  <td colSpan="9" className="px-4 py-8 text-center text-gray-500">
+                                  <td colSpan="10" className="px-4 py-8 text-center text-gray-500">
                                     No items found
                                   </td>
                                 </tr>
@@ -1104,26 +1123,26 @@ const SuppliersDashboard = () => {
                         </div>
                       </div>
 
-                      {/* Signatures */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
+                      {/* Additional Information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 bg-gray-50 rounded-lg">
+                        <div className="space-y-2">
                           <div>
-                            <label className="block text-sm font-medium text-gray-500">Person Delivering</label>
-                            <p className="text-sm text-gray-900">{selectedGrn.person_delivering || 'N/A'}</p>
+                            <label className="block text-sm font-medium text-gray-500">Created By</label>
+                            <p className="text-sm text-gray-900">{selectedGrn.created_by_name || 'N/A'}</p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-500">Delivery Signature</label>
-                            <p className="text-sm text-gray-900">{selectedGrn.person_delivering_signature || 'N/A'}</p>
+                            <label className="block text-sm font-medium text-gray-500">Created Date</label>
+                            <p className="text-sm text-gray-900">{formatDate(selectedGrn.created_at)}</p>
                           </div>
                         </div>
-                        <div className="space-y-4">
+                        <div className="space-y-2">
                           <div>
-                            <label className="block text-sm font-medium text-gray-500">Storekeeper</label>
-                            <p className="text-sm text-gray-900">{selectedGrn.storekeeper || 'N/A'}</p>
+                            <label className="block text-sm font-medium text-gray-500">Processed Date</label>
+                            <p className="text-sm text-gray-900">{selectedGrn.processed_date ? formatDate(selectedGrn.processed_date) : 'Not processed yet'}</p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-500">Storekeeper Signature</label>
-                            <p className="text-sm text-gray-900">{selectedGrn.storekeeper_signature || 'N/A'}</p>
+                            <label className="block text-sm font-medium text-gray-500">Total Items</label>
+                            <p className="text-sm text-gray-900">{selectedGrn.items?.length || 0} items</p>
                           </div>
                         </div>
                       </div>

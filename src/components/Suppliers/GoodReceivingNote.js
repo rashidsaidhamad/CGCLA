@@ -22,7 +22,7 @@ const unitOptions = [
 ];
 
 const initialRows = [
-  { sn: 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', reason: '' }
+  { sn: 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', unitPrice: '', reason: '' }
 ];
 
 
@@ -46,7 +46,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
   };
 
   const addRow = () => {
-    setRows(rows => [...rows, { sn: rows.length + 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', reason: '' }]);
+    setRows(rows => [...rows, { sn: rows.length + 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', unitPrice: '', reason: '' }]);
   };
 
   const handleFormChange = (e) => {
@@ -157,8 +157,8 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium">Transport</label>
-            <input name="transport" value={form.transport} onChange={handleFormChange} className="w-full border rounded px-2 py-1" />
+            <label className="block text-sm font-medium">Transport (Optional)</label>
+            <input name="transport" value={form.transport} onChange={handleFormChange} className="w-full border rounded px-2 py-1" placeholder="e.g., Truck, Van, Motorcycle" />
           </div>
           <div>
             <label className="block text-sm font-medium">Date Received</label>
@@ -169,7 +169,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
             <input type="time" name="timeReceived" value={form.timeReceived} onChange={handleFormChange} className="w-full border rounded px-2 py-1" required />
           </div>
           <div>
-            <label className="block text-sm font-medium">Registration Plate No.</label>
+            <label className="block text-sm font-medium">Registration Plate No. (Optional)</label>
             <input 
               name="registrationPlate" 
               value={form.registrationPlate} 
@@ -191,6 +191,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
                 <th className="border px-2 py-1">Total Item Received</th>
                 <th className="border px-2 py-1">Accepted</th>
                 <th className="border px-2 py-1">Rejected</th>
+                <th className="border px-2 py-1">Unit Price (TSh)</th>
                 <th className="border px-2 py-1">Amount</th>
                 <th className="border px-2 py-1">Rejected Reason/Remark</th>
               </tr>
@@ -214,6 +215,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
                   <td className="border px-2 py-1"><input value={row.totalReceived} onChange={e => handleRowChange(idx, 'totalReceived', e.target.value)} className="w-full" /></td>
                   <td className="border px-2 py-1"><input value={row.accepted} onChange={e => handleRowChange(idx, 'accepted', e.target.value)} className="w-full" /></td>
                   <td className="border px-2 py-1"><input value={row.rejected} onChange={e => handleRowChange(idx, 'rejected', e.target.value)} className="w-full" /></td>
+                  <td className="border px-2 py-1"><input type="number" step="0.01" min="0" value={row.unitPrice} onChange={e => handleRowChange(idx, 'unitPrice', e.target.value)} className="w-full" placeholder="0.00" /></td>
                   <td className="border px-2 py-1"><input value={row.amount} onChange={e => handleRowChange(idx, 'amount', e.target.value)} className="w-full" /></td>
                   <td className="border px-2 py-1"><input value={row.reason} onChange={e => handleRowChange(idx, 'reason', e.target.value)} className="w-full" /></td>
                 </tr>

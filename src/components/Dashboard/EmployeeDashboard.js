@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import Requesters from './Requesters';
 import Reports from './Reports';
 import StockBalance from './StockBalance';
+import ItemIssuedReport from './ItemIssuedReport';
 
 const EmployeeDashboard = ({ user, onLogout }) => {
   const location = useLocation();
@@ -22,6 +23,13 @@ const EmployeeDashboard = ({ user, onLogout }) => {
       icon: '📊', 
       path: '/dashboard/reports',
       description: 'Analytics and reports'
+    },
+    { 
+      id: 'item-issued-report', 
+      name: 'Item Issued Report', 
+      icon: '📋', 
+      path: '/dashboard/item-issued-report',
+      description: 'Detailed item issued tracking'
     },
     { 
       id: 'stock-balance', 
@@ -177,6 +185,7 @@ const EmployeeDashboard = ({ user, onLogout }) => {
               <Route path="/" element={<Navigate to="/dashboard/requesters" replace />} />
               <Route path="/requesters" element={<Requesters />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/item-issued-report" element={<ItemIssuedReport />} />
               <Route path="/stock-balance" element={<StockBalance />} />
               <Route path="/suppliers" element={React.createElement(require('./SuppliersPage').default)} />
               <Route path="*" element={<Navigate to="/dashboard/requesters" replace />} />

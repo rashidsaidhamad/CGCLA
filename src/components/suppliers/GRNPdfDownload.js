@@ -1,0 +1,170 @@
+import React from 'react';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+const GRNPdfDownload = ({ grn, onDownload }) => {
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    
+    // Company Header
+    doc.setFontSize(20);
+    doc.setTextColor(40);
+    doc.text('Goods Receiving Note', 105, 20, { align: 'center' });
+    
+    // Add line separator
+    doc.setLineWidth(0.5);
+    doc.line(20, 25, 190, 25);
+    
+    // GRN Details Section
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    
+    const details = [
+      ['GRN ID:', grn.id || 'N/A'],
+      ['PO Number:', grn.po_number || 'N/A'],
+      ['Delivery Number:', grn.delivery_number || 'N/A'],
+      ['Supplier Name:', grn.supplier_name || 'N/A'],
+      ['Supplier Phone:', grn.supplier_phone || 'N/A'],
+      ['Supplier Email:', grn.supplier_email || 'N/A'],
+      ['Transport:', grn.transport || 'N/A'],
+      ['Registration Plate:', grn.registration_plate || 'N/A'],
+      ['Date Received:', grn.date_received || 'N/A'],
+      ['Time Received:', grn.time_received || 'N/A'],
+      ['Person Delivering:', grn.person_delivering || 'N/A'],
+      ['Storekeeper:', grn.storekeeper || 'N/A'],
+      ['Created By:', grn.created_by || 'N/A'],
+      ['Created Date:', grn.created_date ? new Date(grn.created_date).toLocaleDateString() : 'N/A'],
+      ['Processed Date:', grn.processed_date ? new Date(grn.processed_date).toLocaleDateString() : 'N/A']
+    ];
+    
+    let yPosition = 35;
+    const leftColumn = 20;
+    const rightColumn = 105;
+    
+    // Print details in two columns
+    details.forEach((detail, index) => {
+      if (index < Math.ceil(details.length / 2)) {
+        doc.text(detail[0], leftColumn, yPosition);
+        doc.text(detail[1], leftColumn + 35, yPosition);
+      } else {
+        const rightIndex = index - Math.ceil(details.length / 2);
+        const rightY = 35 + (rightIndex * 7);
+        doc.text(detail[0], rightColumn, rightY);
+        doc.text(detail[1], rightColumn + 35, rightY);
+      }
+      if (index < Math.ceil(details.length / 2)) {
+        yPosition += 7;
+      }
+    });
+    
+    // Items Table
+    if (grn.items && grn.items.length > 0) {
+      const tableStartY = yPosition + 20;
+      
+      doc.setFontSize(14);
+      doc.setTextColor(40);
+      doc.text('Items Details', 20, tableStartY - 10);
+      
+      const tableColumns = [
+        'S/N',
+        'Description',
+        'Unit',
+        'Total Received',
+        'Accepted',
+        'Rejected',
+        'Unit Price (TSh)',
+        'Amount',
+        'Reason/Remark'
+      ];
+      
+      const tableRows = grn.items.map((item, index) => [
+        (index + 1).toString(),
+        item.description || 'N/A',
+        item.unit || 'N/A',
+        item.total_received?.toString() || item.totalReceived?.toString() || 'N/A',
+        item.accepted?.toString() || 'N/A',
+        item.rejected?.toString() || 'N/A',
+        item.unit_price ? parseFloat(item.unit_price).toLocaleString() : 
+         (item.unitPrice ? parseFloat(item.unitPrice).toLocaleString() : 'N/A'),
+        item.amount ? parseFloat(item.amount).toLocaleString() : 'N/A',
+        item.rejected_reason || item.reason || 'N/A'
+      ]);
+      
+      doc.autoTable({
+        startY: tableStartY,
+        head: [tableColumns],
+        body: tableRows,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        margin: { left: 10, right: 10 },
+        columnStyles: {
+          0: { cellWidth: 15 }, // S/N
+          1: { cellWidth: 35 }, // Description
+          2: { cellWidth: 20 }, // Unit
+          3: { cellWidth: 25 }, // Total Received
+          4: { cellWidth: 20 }, // Accepted
+          5: { cellWidth: 20 }, // Rejected
+          6: { cellWidth: 25 }, // Unit Price
+          7: { cellWidth: 20 }, // Amount
+          8: { cellWidth: 35 }  // Reason
+        }
+      });
+      
+      // Summary
+      const finalY = doc.lastAutoTable.finalY + 20;
+      const totalItems = grn.items.reduce((sum, item) => 
+        sum + (parseFloat(item.total_received || item.totalReceived || 0)), 0);
+      const totalAccepted = grn.items.reduce((sum, item) => 
+        sum + (parseFloat(item.accepted || 0)), 0);
+      const totalRejected = grn.items.reduce((sum, item) => 
+        sum + (parseFloat(item.rejected || 0)), 0);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(40);
+      doc.text('Summary:', 20, finalY);
+      doc.setTextColor(0);
+      doc.text(`Total Items: ${totalItems}`, 20, finalY + 10);
+      doc.text(`Total Accepted: ${totalAccepted}`, 20, finalY + 20);
+      doc.text(`Total Rejected: ${totalRejected}`, 20, finalY + 30);
+    }
+    
+    // Footer
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(8);
+    doc.setTextColor(128);
+    doc.text('Generated by CGCLA Warehouse Management System', 105, pageHeight - 10, { align: 'center' });
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, pageHeight - 5, { align: 'center' });
+    
+    // Save the PDF
+    const fileName = `GRN_${grn.id || 'Unknown'}_${grn.po_number || 'No_PO'}.pdf`;
+    doc.save(fileName);
+    
+    // Call onDownload callback if provided
+    if (onDownload) {
+      onDownload();
+    }
+  };
+
+  return (
+    <button 
+      className="btn btn-success btn-sm"
+      onClick={generatePDF}
+      title="Download GRN as PDF"
+    >
+      <i className="fas fa-download me-1"></i>
+      Download PDF
+    </button>
+  );
+};
+
+export default GRNPdfDownload;
