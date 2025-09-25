@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatCurrency } from '../../utils/currency';
-import StockAdjustmentModal from './StockAdjustmentModal';
-import ItemHistoryModal from './ItemHistoryModal';
+import ItemBatchDetails from './ItemBatchDetails';
 
 const StockBalance = () => {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -15,6 +13,8 @@ const StockBalance = () => {
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [showBatchDetails, setShowBatchDetails] = useState(false);
+  const [selectedItemForBatch, setSelectedItemForBatch] = useState(null);
 
   // Stock adjustment modal state
   const [showStockModal, setShowStockModal] = useState(false);
@@ -22,16 +22,8 @@ const StockBalance = () => {
   const [stockAdjustment, setStockAdjustment] = useState({
     type: 'increase',
     quantity: 0,
-    reason: '',
-    date: new Date().toISOString().split('T')[0], // Default to today
-    unit_price: 0 // New unit price field
+    reason: ''
   });
-
-  // Item history modal state
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [itemHistory, setItemHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [localHistory, setLocalHistory] = useState({}); // Store local history per item
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -45,9 +37,17 @@ const StockBalance = () => {
   const fetchInventoryItems = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE}/inventory/items/`, {
+      // Try to fetch with batch information first
+      let response = await fetch(`${API_BASE}/inventory/items-with-batches/`, {
         headers: getHeaders(),
       });
+      
+      // If batch endpoint doesn't exist, fall back to regular endpoint
+      if (!response.ok && response.status === 404) {
+        response = await fetch(`${API_BASE}/inventory/items/`, {
+          headers: getHeaders(),
+        });
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -55,7 +55,18 @@ const StockBalance = () => {
       
       const data = await response.json();
       console.log('Inventory items data:', data.results?.[0] || data[0]); // Debug log
-      setInventoryItems(data.results || data);
+      
+      // Process the data to ensure batch information is available
+      const processedItems = (data.results || data).map(item => ({
+        ...item,
+        // Calculate batch info if not provided by API
+        batches: item.batches || [],
+        current_fifo_price: item.current_fifo_price || item.unit_price,
+        average_price: item.average_price || item.unit_price,
+        total_stock: item.total_stock || item.stock
+      }));
+      
+      setInventoryItems(processedItems);
       setError(null);
     } catch (error) {
       console.error('Error fetching inventory items:', error);
@@ -101,8 +112,8 @@ const StockBalance = () => {
 
   // Handle stock adjustment
   const handleStockAdjustment = async () => {
-    if (!stockAdjustment.quantity || !stockAdjustment.reason || !stockAdjustment.date) {
-      alert('Please enter quantity, reason, and date for adjustment');
+    if (!stockAdjustment.quantity || !stockAdjustment.reason) {
+      alert('Please enter quantity and reason for adjustment');
       return;
     }
 
@@ -112,71 +123,23 @@ const StockBalance = () => {
         ? stockAdjustment.quantity 
         : -stockAdjustment.quantity;
 
-      const requestData = {
-        item_id: selectedItem.id,
-        adjustment: adjustmentValue,
-        reason: stockAdjustment.reason,
-        date: stockAdjustment.date,
-        // Store current values as "before" values for history tracking
-        stock_before: selectedItem.stock,
-        price_before: selectedItem.unit_price || 0
-      };
-
-      // Include unit price if provided
-      if (stockAdjustment.unit_price && stockAdjustment.unit_price > 0) {
-        requestData.unit_price = parseFloat(stockAdjustment.unit_price);
-        requestData.price_after = parseFloat(stockAdjustment.unit_price);
-      } else {
-        requestData.price_after = selectedItem.unit_price || 0;
-      }
-
-      // Calculate stock after
-      requestData.stock_after = selectedItem.stock + adjustmentValue;
-
-      console.log('Sending stock adjustment data:', requestData);
-
       const response = await fetch(`${API_BASE}/inventory/stock/adjust/`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+          item_id: selectedItem.id,
+          adjustment: adjustmentValue,
+          reason: stockAdjustment.reason
+        })
       });
 
       if (response.ok) {
         const result = await response.json();
-        
-        // Create local history entry
-        const historyEntry = {
-          id: Date.now(), // Temporary ID
-          item_name: selectedItem.name,
-          stock_before: selectedItem.stock,
-          stock_after: selectedItem.stock + adjustmentValue,
-          price_before: selectedItem.unit_price || 0,
-          price_after: requestData.price_after,
-          date: stockAdjustment.date,
-          created_at: new Date().toISOString(),
-          reason: stockAdjustment.reason,
-          adjustment: adjustmentValue,
-          transaction_type: stockAdjustment.type
-        };
-
-        // Store in local history
-        setLocalHistory(prev => ({
-          ...prev,
-          [selectedItem.id]: [historyEntry, ...(prev[selectedItem.id] || [])]
-        }));
-
         alert(`Stock adjusted successfully! ${result.item}: ${result.old_stock} → ${result.new_stock} units`);
         setShowStockModal(false);
         setSelectedItem(null);
-        setStockAdjustment({ 
-          type: 'increase', 
-          quantity: 0, 
-          reason: '', 
-          date: new Date().toISOString().split('T')[0],
-          unit_price: 0 
-        });
-        // Refresh the inventory data to show updated stock
-        await fetchInventoryItems();
+        setStockAdjustment({ type: 'increase', quantity: 0, reason: '' });
+        fetchInventoryItems(); // Refresh the data
       } else {
         const errorData = await response.json();
         alert(`Error: ${errorData.error || 'Failed to adjust stock'}`);
@@ -190,117 +153,20 @@ const StockBalance = () => {
   // Open stock adjustment modal
   const openStockModal = (item) => {
     setSelectedItem(item);
-    setStockAdjustment(prev => ({
-      ...prev,
-      unit_price: item.unit_price || 0 // Pre-fill with current unit price
-    }));
     setShowStockModal(true);
   };
 
-  // Fetch item history
-  const fetchItemHistory = async (itemId) => {
-    try {
-      setHistoryLoading(true);
-      console.log('Fetching history for item:', itemId);
-      
-      // Try multiple possible endpoints for history
-      const possibleEndpoints = [
-        `${API_BASE}/inventory/items/${itemId}/history/`,
-        `${API_BASE}/inventory/transactions/?item=${itemId}`,
-        `${API_BASE}/inventory/stock-adjustments/?item=${itemId}`,
-        `${API_BASE}/inventory/history/${itemId}/`
-      ];
-
-      let historyData = [];
-      
-      for (const endpoint of possibleEndpoints) {
-        try {
-          console.log('Trying endpoint:', endpoint);
-          const response = await fetch(endpoint, {
-            headers: getHeaders(),
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('History data from', endpoint, ':', data);
-            historyData = data.results || data || [];
-            if (historyData.length > 0) {
-              break; // Use the first endpoint that returns data
-            }
-          } else {
-            console.log('Endpoint failed:', endpoint, response.status);
-          }
-        } catch (endpointError) {
-          console.log('Error with endpoint:', endpoint, endpointError);
-          continue;
-        }
-      }
-
-      if (historyData.length === 0) {
-        // If no history from API, create mock data from recent stock transactions
-        console.log('No history found, checking recent transactions');
-        try {
-          const transResponse = await fetch(`${API_BASE}/inventory/transactions/`, {
-            headers: getHeaders(),
-          });
-          
-          if (transResponse.ok) {
-            const transData = await transResponse.json();
-            const itemTransactions = (transData.results || transData).filter(
-              transaction => transaction.item_id === itemId || transaction.item?.id === itemId
-            );
-            historyData = itemTransactions.slice(0, 10); // Get last 10 transactions
-          }
-        } catch (transError) {
-          console.log('Error fetching transactions:', transError);
-        }
-      }
-
-      // Sort by date (newest first) for proper before/after logic
-      const sortedHistory = historyData.sort((a, b) => {
-        const dateA = new Date(a.date || a.created_at || a.timestamp);
-        const dateB = new Date(b.date || b.created_at || b.timestamp);
-        return dateB - dateA; // Newest first
-      });
-
-      console.log('Final sorted history:', sortedHistory);
-      
-      // Combine with local history if available
-      const itemLocalHistory = localHistory[itemId] || [];
-      const combinedHistory = [...itemLocalHistory, ...sortedHistory];
-      
-      // Remove duplicates and sort again
-      const uniqueHistory = combinedHistory.filter((item, index, self) => 
-        index === self.findIndex(t => t.id === item.id)
-      ).sort((a, b) => {
-        const dateA = new Date(a.date || a.created_at || a.timestamp);
-        const dateB = new Date(b.date || b.created_at || b.timestamp);
-        return dateB - dateA; // Newest first
-      });
-
-      setItemHistory(uniqueHistory);
-      
-      // If still no history, show a message
-      if (uniqueHistory.length === 0) {
-        console.log('No history found for item:', itemId);
-      }
-      
-    } catch (error) {
-      console.error('Error fetching item history:', error);
-      setItemHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
+  // Open batch details modal
+  const openBatchDetails = (item) => {
+    setSelectedItemForBatch(item);
+    setShowBatchDetails(true);
   };
 
-  // Open item history modal
-  const openHistoryModal = (item) => {
-    setSelectedItem(item);
-    setShowHistoryModal(true);
-    fetchItemHistory(item.id);
+  // Close batch details modal
+  const closeBatchDetails = () => {
+    setShowBatchDetails(false);
+    setSelectedItemForBatch(null);
   };
-
-
 
   useEffect(() => {
     fetchInventoryItems();
@@ -325,6 +191,18 @@ const StockBalance = () => {
       if (sortBy === 'category') {
         aValue = a.category?.name || '';
         bValue = b.category?.name || '';
+      }
+      
+      // Handle batch-aware stock
+      if (sortBy === 'stock') {
+        aValue = a.total_stock || a.stock;
+        bValue = b.total_stock || b.stock;
+      }
+      
+      // Handle batch-aware unit price
+      if (sortBy === 'unit_price') {
+        aValue = a.current_fifo_price || a.unit_price;
+        bValue = b.current_fifo_price || b.unit_price;
       }
       
       // Handle date sorting
@@ -353,18 +231,30 @@ const StockBalance = () => {
 
   // Get stock status
   const getStockStatus = (item) => {
-    if (item.stock <= 0) {
+    const currentStock = item.total_stock || item.stock;
+    if (currentStock <= 0) {
       return { status: 'Out of Stock', color: 'text-red-600', bg: 'bg-red-100', icon: '❌' };
-    } else if (item.stock <= item.min_stock) {
+    } else if (currentStock <= item.min_stock) {
       return { status: 'Low Stock', color: 'text-yellow-600', bg: 'bg-yellow-100', icon: '⚠️' };
-    } else if (item.stock >= item.max_stock) {
+    } else if (currentStock >= item.max_stock) {
       return { status: 'Overstock', color: 'text-purple-600', bg: 'bg-purple-100', icon: '📦' };
     } else {
       return { status: 'In Stock', color: 'text-green-600', bg: 'bg-green-100', icon: '✅' };
     }
   };
 
-
+  // Calculate statistics
+  const stats = {
+    totalItems: inventoryItems.length,
+    inStock: inventoryItems.filter(item => (item.total_stock || item.stock) > item.min_stock).length,
+    lowStock: inventoryItems.filter(item => (item.total_stock || item.stock) <= item.min_stock && (item.total_stock || item.stock) > 0).length,
+    outOfStock: inventoryItems.filter(item => (item.total_stock || item.stock) <= 0).length,
+    totalValue: inventoryItems.reduce((sum, item) => {
+      const stock = item.total_stock || item.stock;
+      const price = item.average_price || item.unit_price;
+      return sum + (stock * parseFloat(price || 0));
+    }, 0)
+  };
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -407,13 +297,99 @@ const StockBalance = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl shadow-lg p-8 text-white">
-        <h1 className="text-3xl font-bold mb-2">Stock Balance</h1>
+        <h1 className="text-3xl font-bold mb-2">Stock Balance with Batch Tracking</h1>
         <p className="text-green-100 text-lg">
-          Monitor inventory levels and stock movements
+          Monitor inventory levels, stock movements, and individual batch prices
         </p>
+        <div className="mt-4 flex items-center space-x-6 text-sm">
+          <div className="flex items-center">
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+            </svg>
+            <span>Each item tracks multiple price batches separately</span>
+          </div>
+          <div className="flex items-center">
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd" />
+            </svg>
+            <span>FIFO pricing ensures oldest batches are used first</span>
+          </div>
+        </div>
       </div>
 
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Items</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalItems}</p>
+            </div>
+          </div>
+        </div>
 
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">In Stock</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.inStock}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Low Stock</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.lowStock}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.outOfStock}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Value (TSh)</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Search and Filter */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -549,6 +525,9 @@ const StockBalance = () => {
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Batches
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -568,7 +547,12 @@ const StockBalance = () => {
                       {item.category?.name || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="font-medium">{item.stock}</span> {item.unit}
+                      <span className="font-medium">{item.total_stock || item.stock}</span> {item.unit}
+                      {item.batches && item.batches.length > 0 && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          From {item.batches.filter(b => b.remaining_quantity > 0).length} batches
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {item.min_stock} / {item.max_stock}
@@ -583,10 +567,18 @@ const StockBalance = () => {
                       {item.location}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(item.unit_price)}
+                      {item.current_fifo_price ? 
+                        item.current_fifo_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : 
+                        (item.unit_price ? item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0')
+                      }
+                      {item.batches && item.batches.length > 0 && item.average_price !== item.current_fifo_price && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Avg: {item.average_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                      {formatCurrency(item.stock * parseFloat(item.unit_price || 0))}
+                      {((item.total_stock || item.stock) * parseFloat((item.average_price || item.unit_price) || 0)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div>
@@ -598,25 +590,40 @@ const StockBalance = () => {
                         </div>
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {item.batches && item.batches.length > 0 ? (
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {item.batches.filter(batch => batch.remaining_quantity > 0).length} Active
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              / {item.batches.length} Total
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            FIFO: TSh {item.current_fifo_price ? item.current_fifo_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0'}
+                            {item.average_price !== item.current_fifo_price && (
+                              <span className="ml-2">
+                                Avg: TSh {item.average_price ? item.average_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No batches</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => openStockModal(item)}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-full text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                          onClick={() => openBatchDetails(item)}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-full text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                         >
                           <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                           </svg>
-                          Adjust Stock
-                        </button>
-                        <button
-                          onClick={() => openHistoryModal(item)}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-full text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                        >
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          View History
+                          View Batches
                         </button>
                       </div>
                     </td>
@@ -674,33 +681,14 @@ const StockBalance = () => {
           </div>
         )}
       </div>
-
-      {/* Stock Adjustment Modal */}
-      <StockAdjustmentModal
-        showStockModal={showStockModal}
-        selectedItem={selectedItem}
-        stockAdjustment={stockAdjustment}
-        setStockAdjustment={setStockAdjustment}
-        handleStockAdjustment={handleStockAdjustment}
-        onClose={() => {
-          setShowStockModal(false);
-          setSelectedItem(null);
-        }}
-      />
-
-      {/* Item History Modal */}
-      <ItemHistoryModal
-        showHistoryModal={showHistoryModal}
-        selectedItem={selectedItem}
-        itemHistory={itemHistory}
-        historyLoading={historyLoading}
-        onClose={() => {
-          setShowHistoryModal(false);
-          setSelectedItem(null);
-          setItemHistory([]);
-        }}
-      />
      
+      {/* Batch Details Modal */}
+      {showBatchDetails && selectedItemForBatch && (
+        <ItemBatchDetails 
+          itemId={selectedItemForBatch.id} 
+          onClose={closeBatchDetails}
+        />
+      )}
     </div>
   );
 };
