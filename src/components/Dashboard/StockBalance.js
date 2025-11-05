@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ItemBatchDetails from './ItemBatchDetails';
+import AddStockModal from './AddStockModal';
+import ViewTransactionsModal from './ViewTransactionsModal';
+import DamageReportModal from './DamageReportModal';
 
 const StockBalance = () => {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -15,6 +18,7 @@ const StockBalance = () => {
   const [itemsPerPage] = useState(10);
   const [showBatchDetails, setShowBatchDetails] = useState(false);
   const [selectedItemForBatch, setSelectedItemForBatch] = useState(null);
+  const [dropdownOpen, setDropdownOpen] = useState(null);
 
   // Stock adjustment modal state
   const [showStockModal, setShowStockModal] = useState(false);
@@ -24,6 +28,11 @@ const StockBalance = () => {
     quantity: 0,
     reason: ''
   });
+
+  // New modals state
+  const [showAddStockModal, setShowAddStockModal] = useState(false);
+  const [showViewTransactionsModal, setShowViewTransactionsModal] = useState(false);
+  const [showDamageReportModal, setShowDamageReportModal] = useState(false);
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -168,11 +177,56 @@ const StockBalance = () => {
     setSelectedItemForBatch(null);
   };
 
+  // Toggle dropdown menu
+  const toggleDropdown = (itemId) => {
+    setDropdownOpen(dropdownOpen === itemId ? null : itemId);
+  };
+
+  // Handle Add Stock action
+  const handleAddStock = (item) => {
+    setSelectedItem(item);
+    setShowAddStockModal(true);
+    setDropdownOpen(null);
+  };
+
+  // Handle View Transactions action
+  const handleViewTransactions = (item) => {
+    setSelectedItem(item);
+    setShowViewTransactionsModal(true);
+    setDropdownOpen(null);
+  };
+
+  // Handle Damage Report action
+  const handleDamageReport = (item) => {
+    setSelectedItem(item);
+    setShowDamageReportModal(true);
+    setDropdownOpen(null);
+  };
+
+  // Handle modal success callbacks
+  const handleModalSuccess = () => {
+    fetchInventoryItems(); // Refresh inventory list
+  };
+
   useEffect(() => {
     fetchInventoryItems();
     fetchCategories();
     fetchStockTransactions();
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownOpen && !event.target.closest('.dropdown-container')) {
+        setDropdownOpen(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen]);
 
   // Filter and sort items
   const filteredAndSortedItems = inventoryItems
@@ -511,22 +565,6 @@ const StockBalance = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total Amount (TSh)
                 </th>
-                <th 
-                  onClick={() => handleSort('last_updated')}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                >
-                  <div className="flex items-center">
-                    Last Updated
-                    {sortBy === 'last_updated' && (
-                      <svg className={`ml-1 w-4 h-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Batches
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -580,51 +618,51 @@ const StockBalance = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                       {((item.total_stock || item.stock) * parseFloat((item.average_price || item.unit_price) || 0)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div>
-                        <div className="text-gray-900">
-                          {item.last_updated ? new Date(item.last_updated).toLocaleDateString() : 'N/A'}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {item.last_updated ? new Date(item.last_updated).toLocaleTimeString() : ''}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {item.batches && item.batches.length > 0 ? (
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {item.batches.filter(batch => batch.remaining_quantity > 0).length} Active
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              / {item.batches.length} Total
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            FIFO: TSh {item.current_fifo_price ? item.current_fifo_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0'}
-                            {item.average_price !== item.current_fifo_price && (
-                              <span className="ml-2">
-                                Avg: TSh {item.average_price ? item.average_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 text-xs">No batches</span>
-                      )}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
+                      <div className="relative dropdown-container">
                         <button
-                          onClick={() => openBatchDetails(item)}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-full text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                          onClick={() => toggleDropdown(item.id)}
+                          className="inline-flex items-center p-2 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full transition-colors"
                         >
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                           </svg>
-                          View Batches
                         </button>
+                        
+                        {dropdownOpen === item.id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-10">
+                            <div className="py-1">
+                              <button
+                                onClick={() => handleAddStock(item)}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                              >
+                                <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Add Stock
+                              </button>
+                              <button
+                                onClick={() => handleViewTransactions(item)}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                              >
+                                <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleDamageReport(item)}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                              >
+                                <svg className="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.863-.833-2.634 0L4.232 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                Damage
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -689,6 +727,29 @@ const StockBalance = () => {
           onClose={closeBatchDetails}
         />
       )}
+
+      {/* Add Stock Modal */}
+      <AddStockModal
+        isOpen={showAddStockModal}
+        onClose={() => setShowAddStockModal(false)}
+        selectedItem={selectedItem}
+        onSuccess={handleModalSuccess}
+      />
+
+      {/* View Transactions Modal */}
+      <ViewTransactionsModal
+        isOpen={showViewTransactionsModal}
+        onClose={() => setShowViewTransactionsModal(false)}
+        selectedItem={selectedItem}
+      />
+
+      {/* Damage Report Modal */}
+      <DamageReportModal
+        isOpen={showDamageReportModal}
+        onClose={() => setShowDamageReportModal(false)}
+        selectedItem={selectedItem}
+        onSuccess={handleModalSuccess}
+      />
     </div>
   );
 };

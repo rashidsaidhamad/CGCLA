@@ -251,14 +251,44 @@ const SuppliersDashboard = () => {
     }
   };
 
+  // Get PO Number from GRN
+  const getPONumberFromGRN = (grnId) => {
+    const grn = grns.find(g => g.id === grnId);
+    return grn?.po_number || 'N/A';
+  };
+
+  // Check if item exists by item code
+  const checkItemExists = async (itemCode) => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/items/?search=${itemCode}`, {
+        headers: getHeaders(),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const items = data.results || data;
+        return items.find(item => item.item_code === itemCode) || null;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error checking item existence:', error);
+      return null;
+    }
+  };
+
   // Open stock form for specific items
   const openStockForm = (grnId, items) => {
+    const grnPONumber = getPONumberFromGRN(grnId);
+    
     setStockFormData({
       grnId,
-      poNumber: '',
+      poNumber: grnPONumber,
       items: items.filter(item => item.accepted > 0),
       formItems: items.filter(item => item.accepted > 0).map(item => ({
         ...item,
+        existingItemCode: '', // New field for checking existing items
+        existingItem: null, // Store found existing item
+        isExistingItem: false, // Flag to track if this is an update
         category_id: '',
         supplier_id: '',
         location: 'Warehouse',
@@ -271,50 +301,111 @@ const SuppliersDashboard = () => {
     setShowStockForm(true);
   };
 
+  // Handle existing item code input
+  const handleExistingItemCheck = async (index, itemCode) => {
+    if (!itemCode.trim()) {
+      updateFormItem(index, 'existingItemCode', '');
+      updateFormItem(index, 'existingItem', null);
+      updateFormItem(index, 'isExistingItem', false);
+      return;
+    }
+
+    const existingItem = await checkItemExists(itemCode.trim());
+    
+    updateFormItem(index, 'existingItemCode', itemCode);
+    updateFormItem(index, 'existingItem', existingItem);
+    updateFormItem(index, 'isExistingItem', !!existingItem);
+
+    if (existingItem) {
+      // Pre-fill form with existing item data
+      updateFormItem(index, 'category_id', existingItem.category?.id || '');
+      updateFormItem(index, 'supplier_id', existingItem.supplier?.id || '');
+      updateFormItem(index, 'location', existingItem.location || 'Warehouse');
+      updateFormItem(index, 'min_stock', existingItem.min_stock || 10);
+      updateFormItem(index, 'max_stock', existingItem.max_stock || 1000);
+      updateFormItem(index, 'unit_price', existingItem.unit_price || 0);
+      alert(`Item found: ${existingItem.name}. Stock will be updated instead of creating new item.`);
+    } else {
+      alert(`Item with code "${itemCode}" not found. A new item will be created.`);
+    }
+  };
+
   // Handle form submission for adding to stock
   const handleStockFormSubmit = async () => {
     try {
-      // Validate PO Number
-      if (!stockFormData.poNumber || stockFormData.poNumber.trim() === '') {
-        alert('Please enter a PO Number before submitting.');
-        return;
-      }
-
       setIsLoading(true);
       
       for (const item of stockFormData.formItems) {
-        // Ensure proper data types and null handling
-        const stockData = {
-          item_code: `GRN-${stockFormData.grnId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          name: item.description.trim(),
-          category_id: item.category_id && item.category_id !== '' ? parseInt(item.category_id) : null,
-          supplier_id: item.supplier_id && item.supplier_id !== '' ? parseInt(item.supplier_id) : null,
-          stock: parseInt(item.accepted) || 0,
-          min_stock: parseInt(item.min_stock) || 0,
-          max_stock: parseInt(item.max_stock) || 100,
-          unit: item.unit || 'Piece',
-          location: item.location.trim() || 'Warehouse',
-          unit_price: parseFloat(item.unit_price) || 0.00,
-          expiry_date: item.expiry_date && item.expiry_date !== '' ? item.expiry_date : null,
-          po_number: stockFormData.poNumber.trim() // Add PO Number to stock data
-        };
-        
-        console.log('Sending stock data:', stockData); // Debug log
-        
-        const response = await fetch(`${API_BASE}/inventory/items/create/`, {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify(stockData),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error(`Failed to add ${item.description} to stock:`, errorData);
-          throw new Error(`Failed to add ${item.description}: ${JSON.stringify(errorData)}`);
+        if (item.isExistingItem && item.existingItem) {
+          // Update existing item stock
+          const updateData = {
+            stock: parseInt(item.existingItem.stock) + parseInt(item.accepted),
+            unit_price: parseFloat(item.unit_price) || item.existingItem.unit_price
+          };
+          
+          console.log('Updating existing item:', item.existingItem.id, updateData);
+          
+          const response = await fetch(`${API_BASE}/inventory/items/${item.existingItem.id}/update/`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify(updateData),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Update error:', errorData);
+            throw new Error(`Failed to update item ${item.existingItem.name}: ${errorData.error || 'Unknown error'}`);
+          }
+          
+          const result = await response.json();
+          console.log(`Successfully updated item:`, result);
+          
+          // Create stock transaction for the update
+          await fetch(`${API_BASE}/inventory/add-stock/`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({
+              item_id: item.existingItem.id,
+              quantity: parseInt(item.accepted),
+              unit_price: parseFloat(item.unit_price),
+              date: new Date().toISOString().split('T')[0]
+            }),
+          });
+          
+        } else {
+          // Create new item
+          const stockData = {
+            item_code: `GRN-${stockFormData.grnId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            name: item.description.trim(),
+            category_id: item.category_id && item.category_id !== '' ? parseInt(item.category_id) : null,
+            supplier_id: item.supplier_id && item.supplier_id !== '' ? parseInt(item.supplier_id) : null,
+            stock: parseInt(item.accepted) || 0,
+            min_stock: parseInt(item.min_stock) || 0,
+            max_stock: parseInt(item.max_stock) || 100,
+            unit: item.unit || 'Piece',
+            location: item.location.trim() || 'Warehouse',
+            unit_price: parseFloat(item.unit_price) || 0.00,
+            expiry_date: item.expiry_date && item.expiry_date !== '' ? item.expiry_date : null,
+            po_number: stockFormData.poNumber.trim()
+          };
+          
+          console.log('Creating new item:', stockData);
+          
+          const response = await fetch(`${API_BASE}/inventory/items/create/`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(stockData),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Create error:', errorData);
+            throw new Error(`Failed to create item ${item.description}: ${errorData.error || 'Unknown error'}`);
+          }
+          
+          const result = await response.json();
+          console.log(`Successfully created item:`, result);
         }
-        
-        const result = await response.json();
-        console.log(`Successfully created item:`, result); // Debug log
       }
       
       // Update GRN status to 'completed' or 'added_to_stock'
@@ -782,18 +873,17 @@ const SuppliersDashboard = () => {
                         {/* PO Number Field */}
                         <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Purchase Order (PO) Number *
+                            Purchase Order (PO) Number (From GRN)
                           </label>
                           <input
                             type="text"
                             value={stockFormData.poNumber || ''}
-                            onChange={(e) => setStockFormData(prev => ({...prev, poNumber: e.target.value}))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Enter PO Number (e.g., PO-2025-001)"
-                            required
+                            readOnly
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                            placeholder="PO Number from GRN"
                           />
-                          <p className="text-xs text-gray-500 mt-1">
-                            This PO number will be associated with all items being added to stock
+                          <p className="text-xs text-blue-600 mt-1">
+                            This PO number is retrieved from the selected GRN and will be associated with all items being added to stock
                           </p>
                         </div>
                       </div>
@@ -807,6 +897,33 @@ const SuppliersDashboard = () => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {/* Existing Item Code Check */}
+                              <div className="md:col-span-3">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Existing Item Code (Optional)
+                                </label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={item.existingItemCode || ''}
+                                    onChange={(e) => handleExistingItemCheck(index, e.target.value)}
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Enter existing item code to update stock instead of creating new item"
+                                  />
+                                  {item.isExistingItem && (
+                                    <span className="flex items-center px-3 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium">
+                                      ✓ Found: {item.existingItem?.name}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {item.isExistingItem 
+                                    ? `Stock will be updated for existing item: ${item.existingItem?.name}` 
+                                    : "Leave empty to create a new item. If you enter an existing item code, the stock will be updated instead."
+                                  }
+                                </p>
+                              </div>
+
                               {/* Category */}
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">

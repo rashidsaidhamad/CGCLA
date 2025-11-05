@@ -28,12 +28,14 @@ const ItemIssuedReport = () => {
       setIsLoading(true);
       setError(null);
 
-      // Fetch all required data
-      const [requestsResponse, inventoryResponse, categoriesResponse, transactionsResponse] = await Promise.all([
+      // Fetch all required data including damage reports and stock transactions
+      const [requestsResponse, inventoryResponse, categoriesResponse, transactionsResponse, damageReportsResponse, stockTransactionsResponse] = await Promise.all([
         fetch(`${API_BASE}/reports/request-report/`, { headers: getHeaders() }),
         fetch(`${API_BASE}/reports/inventory-report/`, { headers: getHeaders() }),
         fetch(`${API_BASE}/inventory/categories/`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/transactions/`, { headers: getHeaders() })
+        fetch(`${API_BASE}/inventory/transactions/`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/damage-reports/`, { headers: getHeaders() }),
+        fetch(`${API_BASE}/inventory/stock-transactions/`, { headers: getHeaders() })
       ]);
 
       if (!requestsResponse.ok || !inventoryResponse.ok || !categoriesResponse.ok) {
@@ -44,19 +46,29 @@ const ItemIssuedReport = () => {
       const inventoryData = await inventoryResponse.json();
       const categoriesData = await categoriesResponse.json();
       const transactionsData = transactionsResponse.ok ? await transactionsResponse.json() : [];
+      const damageReportsData = damageReportsResponse.ok ? await damageReportsResponse.json() : [];
+      const stockTransactionsData = stockTransactionsResponse.ok ? await stockTransactionsResponse.json() : [];
 
       console.log('Requests Data:', requestsData);
       console.log('Inventory Data:', inventoryData);
       console.log('Categories Data:', categoriesData);
       console.log('Transactions Data:', transactionsData);
+      console.log('Damage Reports Data:', damageReportsData);
+      console.log('Stock Transactions Data:', stockTransactionsData);
 
       // Set categories for filtering
       setCategories(categoriesData.results || categoriesData || []);
 
       // Process and combine the data
-      const processedData = processItemData(requestsData, inventoryData, transactionsData);
+      const processedData = processItemData(requestsData, inventoryData, transactionsData, damageReportsData, stockTransactionsData);
       setItemDetails(processedData);
-      setReportData({ requests: requestsData, inventory: inventoryData, transactions: transactionsData });
+      setReportData({ 
+        requests: requestsData, 
+        inventory: inventoryData, 
+        transactions: transactionsData,
+        damageReports: damageReportsData,
+        stockTransactions: stockTransactionsData
+      });
 
     } catch (error) {
       console.error('Error fetching item issued report:', error);
@@ -67,10 +79,12 @@ const ItemIssuedReport = () => {
   };
 
   // Process and combine request and inventory data
-  const processItemData = (requestsData, inventoryData, transactionsData = []) => {
+  const processItemData = (requestsData, inventoryData, transactionsData = [], damageReportsData = [], stockTransactionsData = []) => {
     const requests = requestsData.requests || requestsData || [];
     const inventory = inventoryData.items || inventoryData || [];
     const transactions = transactionsData.results || transactionsData || [];
+    const damageReports = damageReportsData.results || damageReportsData || [];
+    const stockTransactions = stockTransactionsData.results || stockTransactionsData || [];
 
     // Create a map of inventory items for quick lookup
     const inventoryMap = {};
@@ -92,6 +106,7 @@ const ItemIssuedReport = () => {
       if (!itemStockMap[item.id]) {
         itemStockMap[item.id] = {
           id: item.id,
+          itemCode: item.item_code || 'N/A',
           itemName: item.name,
           unit: item.unit || 'pcs',
           category: item.category?.name || item.category || 'Uncategorized',
@@ -107,23 +122,53 @@ const ItemIssuedReport = () => {
       }
     });
 
-    // Process transactions for received items this month
-    transactions.forEach(transaction => {
-      const transactionDate = new Date(transaction.created_at || transaction.date);
+    // Process stock transactions for received items this month
+    stockTransactions.forEach(transaction => {
+      const transactionDate = new Date(transaction.date);
       const transactionMonth = transactionDate.getMonth();
       const transactionYear = transactionDate.getFullYear();
 
       if (transactionMonth === currentMonth && transactionYear === currentYear) {
-        const itemId = transaction.item?.id || transaction.item;
-        if (itemStockMap[itemId]) {
-          if (transaction.transaction_type === 'IN' || transaction.type === 'received') {
-            itemStockMap[itemId].receivedThisMonth += transaction.quantity || 0;
-          }
-          if (transaction.transaction_type === 'DAMAGE' || transaction.type === 'damage') {
-            itemStockMap[itemId].currentDamaged += transaction.quantity || 0;
-          }
+        const itemId = transaction.item?.id || transaction.item_id;
+        if (itemStockMap[itemId] && (transaction.transaction_type === 'received' || transaction.transaction_type === 'IN')) {
+          itemStockMap[itemId].receivedThisMonth += Math.abs(transaction.quantity || 0);
         }
       }
+    });
+
+    // Process damage reports for damaged items this month
+    damageReports.forEach(report => {
+      // Handle both array of all items' reports and specific item reports
+      let reportsToProcess = [];
+      
+      if (Array.isArray(report.reports)) {
+        // If report has a reports array, use that
+        reportsToProcess = report.reports;
+      } else if (report.item_id || report.item) {
+        // If it's a single report
+        reportsToProcess = [report];
+      }
+
+      reportsToProcess.forEach(damageReport => {
+        const reportDate = new Date(damageReport.date);
+        const reportMonth = reportDate.getMonth();
+        const reportYear = reportDate.getFullYear();
+
+        if (reportMonth === currentMonth && reportYear === currentYear) {
+          const itemId = damageReport.item_id || damageReport.item?.id;
+          if (itemStockMap[itemId]) {
+            itemStockMap[itemId].currentDamaged += damageReport.damage_quantity || 0;
+          }
+        }
+
+        // Also check for last month damage
+        if (reportMonth === lastMonth && reportYear === lastMonthYear) {
+          const itemId = damageReport.item_id || damageReport.item?.id;
+          if (itemStockMap[itemId]) {
+            itemStockMap[itemId].lastMonthDamaged += damageReport.damage_quantity || 0;
+          }
+        }
+      });
     });
 
     // Process requests for issued items this month
@@ -207,6 +252,7 @@ const ItemIssuedReport = () => {
     }
 
     const headers = [
+      'Item Code',
       'Item Name',
       'Unit',
       'Last Month Stock',
@@ -221,6 +267,7 @@ const ItemIssuedReport = () => {
     const csvContent = [
       headers.join(','),
       ...filteredData.map(item => [
+        `"${item.itemCode}"`,
         `"${item.itemName}"`,
         `"${item.unit}"`,
         item.lastMonthStock,
@@ -388,6 +435,9 @@ const ItemIssuedReport = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Item Code
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Item Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -409,6 +459,7 @@ const ItemIssuedReport = () => {
               <tr className="bg-gray-50 border-t">
                 <th className="px-6 py-2"></th>
                 <th className="px-6 py-2"></th>
+                <th className="px-6 py-2"></th>
                 <th className="px-6 py-2 text-center text-xs font-medium text-gray-400">Quantity</th>
                 <th className="px-6 py-2 text-center text-xs font-medium text-gray-400">Damaged</th>
                 <th className="px-6 py-2"></th>
@@ -420,6 +471,14 @@ const ItemIssuedReport = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredData.map((item, index) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                  {/* Item Code */}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                      {item.itemCode}
+                    </span>
+                  </td>
+
+                  {/* Item Name */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
