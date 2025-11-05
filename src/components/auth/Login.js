@@ -19,13 +19,7 @@ const Login = ({ onLogin }) => {
       description: "Advanced warehouse management for laboratory supplies and chemical inventory",
       backgroundColor: "from-blue-600 to-green-600"
     },
-    {
-      id: 2,
-      title: "Laboratory Excellence",
-      subtitle: "Quality Chemical Analysis",
-      description: "Ensuring the highest standards in chemical testing and laboratory services",
-      backgroundColor: "from-green-600 to-yellow-500"
-    },
+    
     
   ];
 
@@ -112,12 +106,12 @@ const Login = ({ onLogin }) => {
   const isFormValid = credentials.username.trim() && credentials.password.trim();
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center py-4 px-2">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center py-2 sm:py-4 px-2 sm:px-4">
       {/* Main Rectangle Container */}
-      <div className="max-w-7xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex min-h-[800px]">
+      <div className="max-w-7xl w-full bg-white rounded-lg sm:rounded-2xl shadow-xl sm:shadow-2xl overflow-hidden">
+        <div className="flex flex-col lg:flex-row min-h-[600px] sm:min-h-[700px] lg:min-h-[800px]">
           
-          {/* Left Div - Carousel/Banner Section */}
+          {/* Left Div - Carousel/Banner Section - Hidden on mobile, visible on lg+ */}
           <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
             {slides.map((slide, index) => (
               <div
@@ -126,30 +120,30 @@ const Login = ({ onLogin }) => {
                   index === currentSlide ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                <div className="relative h-full flex items-center justify-center p-12">
+                <div className="relative h-full flex items-center justify-center p-8 xl:p-12">
                   {/* Background Overlay */}
                   <div className="absolute inset-0 bg-black bg-opacity-20"></div>
                   
                   {/* Content */}
                   <div className="relative z-10 text-center text-white max-w-lg">
-                    <div className="mb-8">
+                    <div className="mb-6 lg:mb-8">
                       <img
                         src="/cgcla.jpg"
                         alt="CGCLA Logo"
-                        className="h-24 w-auto mx-auto mb-6 rounded-full shadow-2xl bg-white p-2"
+                        className="h-16 lg:h-20 xl:h-24 w-auto mx-auto mb-4 lg:mb-6 rounded-full shadow-2xl bg-white p-2"
                         onError={(e) => {
                           e.target.style.display = 'none';
                         }}
                       />
                     </div>
                     
-                    <h1 className="text-4xl font-bold mb-4 animate-fade-in" style={{fontFamily: 'Poppins, Roboto, sans-serif'}}>
+                    <h1 className="text-2xl lg:text-3xl xl:text-4xl font-bold mb-3 lg:mb-4 animate-fade-in" style={{fontFamily: 'Poppins, Roboto, sans-serif'}}>
                       {slide.title}
                     </h1>
-                    <h2 className="text-xl font-semibold mb-6 text-yellow-200">
+                    <h2 className="text-lg lg:text-xl font-semibold mb-4 lg:mb-6 text-yellow-200">
                       {slide.subtitle}
                     </h2>
-                    <p className="text-lg leading-relaxed text-blue-50">
+                    <p className="text-base lg:text-lg leading-relaxed text-blue-50">
                       {slide.description}
                     </p>
 
@@ -161,12 +155,12 @@ const Login = ({ onLogin }) => {
             ))}
 
             {/* Slide Indicators */}
-            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-2">
+            <div className="absolute bottom-4 lg:bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-2">
               {slides.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentSlide(index)}
-                  className={`w-3 h-3 rounded-full transition-all duration-200 ${
+                  className={`w-2 h-2 lg:w-3 lg:h-3 rounded-full transition-all duration-200 ${
                     index === currentSlide ? 'bg-white' : 'bg-white bg-opacity-50'
                   }`}
                   aria-label={`Go to slide ${index + 1}`}
@@ -176,48 +170,67 @@ const Login = ({ onLogin }) => {
           </div>
 
           {/* Right Div - Login Form Section */}
-          <div className="flex-1 flex items-center justify-center px-8 sm:px-12 lg:px-16 bg-white">
-            <div className="mx-auto w-full max-w-md">
-              {/* Header */}
-              <div className="text-center mb-10">
+          <div className="flex-1 flex items-center justify-center px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 bg-white py-8 lg:py-0">
+            <div className="mx-auto w-full max-w-sm sm:max-w-md">
+              
+              {/* Mobile Logo - Only visible on small screens */}
+              <div className="lg:hidden text-center mb-6 sm:mb-8">
                 <img
                   src="/cgcla.jpg"
-                  alt="Chief Government Chemist Laboratory Agency Logo"
-                  className="h-20 w-auto mx-auto mb-6"
+                  alt="CGCLA Logo"
+                  className="h-16 sm:h-20 w-auto mx-auto mb-4 rounded-full shadow-lg"
                   onError={(e) => {
                     e.target.style.display = 'none';
                   }}
                 />
-                <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{fontFamily: 'Poppins, Roboto, sans-serif'}}>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1" style={{fontFamily: 'Poppins, Roboto, sans-serif'}}>
+                  CGCLA
+                </h1>
+                <p className="text-sm sm:text-base text-gray-600">
+                  Warehouse Management System
+                </p>
+              </div>
+              
+              {/* Header - Desktop */}
+              <div className="hidden lg:block text-center mb-8 xl:mb-10">
+                <img
+                  src="/cgcla.jpg"
+                  alt="Chief Government Chemist Laboratory Agency Logo"
+                  className="h-16 xl:h-20 w-auto mx-auto mb-4 xl:mb-6"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+                <h2 className="text-2xl xl:text-3xl font-bold text-gray-900 mb-2" style={{fontFamily: 'Poppins, Roboto, sans-serif'}}>
                   CGCLA Warehouse Management
                 </h2>
-                <p className="text-gray-600">
+                <p className="text-sm xl:text-base text-gray-600">
                   Sign in to access the warehouse system
                 </p>
               </div>
 
               {/* Login Form */}
-              <form className="space-y-6" onSubmit={handleSubmit}>
+              <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
                 {/* Error Message */}
                 {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 animate-fade-in">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 animate-fade-in">
                     <div className="flex">
-                      <svg className="w-5 h-5 text-red-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-red-700 text-sm">{error}</span>
+                      <span className="text-red-700 text-xs sm:text-sm">{error}</span>
                     </div>
                   </div>
                 )}
 
                 {/* Username Field */}
-                <div className="mb-8">
-                  <label htmlFor="username" className="block text-lg font-semibold text-gray-700 mb-4">
+                <div className="mb-4 sm:mb-6 lg:mb-8">
+                  <label htmlFor="username" className="block text-sm sm:text-base lg:text-lg font-semibold text-gray-700 mb-2 sm:mb-3 lg:mb-4">
                     Username
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                      <svg className="h-7 w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 lg:pl-5 flex items-center pointer-events-none">
+                      <svg className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                       </svg>
                     </div>
@@ -229,7 +242,7 @@ const Login = ({ onLogin }) => {
                       required
                       value={credentials.username}
                       onChange={handleInputChange}
-                      className="block w-full pl-16 pr-6 py-5 text-xl border-2 border-gray-300 rounded-xl focus:ring-3 focus:ring-blue-500 focus:border-blue-500 transition duration-200 shadow-sm"
+                      className="block w-full pl-10 sm:pl-12 lg:pl-16 pr-4 sm:pr-6 py-3 sm:py-4 lg:py-5 text-base sm:text-lg lg:text-xl border-2 border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 shadow-sm"
                       placeholder="Enter your username"
                       aria-label="username"
                     />
@@ -237,13 +250,13 @@ const Login = ({ onLogin }) => {
                 </div>
 
                 {/* Password Field */}
-                <div className="mb-8">
-                  <label htmlFor="password" className="block text-lg font-semibold text-gray-700 mb-4">
+                <div className="mb-4 sm:mb-6 lg:mb-8">
+                  <label htmlFor="password" className="block text-sm sm:text-base lg:text-lg font-semibold text-gray-700 mb-2 sm:mb-3 lg:mb-4">
                     Password
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                      <svg className="h-7 w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 lg:pl-5 flex items-center pointer-events-none">
+                      <svg className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
                     </div>
@@ -255,22 +268,22 @@ const Login = ({ onLogin }) => {
                       required
                       value={credentials.password}
                       onChange={handleInputChange}
-                      className="block w-full pl-16 pr-16 py-5 text-xl border-2 border-gray-300 rounded-xl focus:ring-3 focus:ring-blue-500 focus:border-blue-500 transition duration-200 shadow-sm"
+                      className="block w-full pl-10 sm:pl-12 lg:pl-16 pr-10 sm:pr-12 lg:pr-16 py-3 sm:py-4 lg:py-5 text-base sm:text-lg lg:text-xl border-2 border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 shadow-sm"
                       placeholder="Enter your password"
                       aria-label="Password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-5 flex items-center"
+                      className="absolute inset-y-0 right-0 pr-3 sm:pr-4 lg:pr-5 flex items-center"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? (
-                        <svg className="h-7 w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L7.05 7.05M9.878 9.878a3 3 0 013-3m7.072 2.072L19.95 7.05m-2.5 2.5L7.05 7.05m12.9 12.9L7.05 7.05" />
                         </svg>
                       ) : (
-                        <svg className="h-7 w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
@@ -280,11 +293,11 @@ const Login = ({ onLogin }) => {
                 </div>
 
                 {/* Submit Button */}
-                <div className="pt-4">
+                <div className="pt-2 sm:pt-4">
                   <button
                     type="submit"
                     disabled={!isFormValid || isLoading}
-                    className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-lg font-semibold rounded-lg text-white transition duration-200 ${
+                    className={`group relative w-full flex justify-center py-3 sm:py-3 lg:py-4 px-4 border border-transparent text-base sm:text-lg font-semibold rounded-lg text-white transition duration-200 ${
                       isFormValid && !isLoading
                         ? 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg transform hover:-translate-y-0.5'
                         : 'bg-gray-400 cursor-not-allowed'
@@ -292,7 +305,7 @@ const Login = ({ onLogin }) => {
                   >
                     {isLoading ? (
                       <div className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin -ml-1 mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -306,9 +319,9 @@ const Login = ({ onLogin }) => {
               </form>
 
               {/* Footer */}
-              <div className="mt-8">
+              <div className="mt-6 sm:mt-8">
                 <div className="text-center">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Need help? Contact{' '}
                     <a href="mailto:support@cgcla.go.tz" className="font-medium text-blue-600 hover:text-blue-500">
                       IT Support

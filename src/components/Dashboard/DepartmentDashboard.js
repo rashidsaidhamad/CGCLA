@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import DepartmentOverview from './DepartmentOverview_simple';
 import MyRequests from './MyRequests_fixed';
 import NewRequest from './NewRequest';
-import DepartmentSettings from './DepartmentSettings';
 import '../../styles/sidebar-animations.css';
 
 const DepartmentDashboard = ({ user, onLogout }) => {
@@ -31,13 +30,6 @@ const DepartmentDashboard = ({ user, onLogout }) => {
       icon: '📋', 
       path: '/department/my-requests',
       description: 'View and track your requests'
-    },
-    { 
-      id: 'settings', 
-      name: 'Settings', 
-      icon: '⚙️', 
-      path: '/department/settings',
-      description: 'Department preferences'
     }
   ];
 
@@ -103,8 +95,12 @@ const DepartmentDashboard = ({ user, onLogout }) => {
                 </span>
                 {sidebarOpen && (
                   <div className="flex-1 opacity-0 animate-fadeIn" style={{ animationDelay: '0.3s' }}>
-                    <div className="font-medium">{item.name}</div>
-                    <div className="text-xs text-indigo-400 group-hover:text-indigo-300 transition-colors mt-1">
+                    <div className="font-bold text-base">{item.name}</div>
+                    <div className={`text-xs transition-colors mt-1 ${
+                      isActive 
+                        ? 'text-indigo-200 font-bold' 
+                        : 'text-indigo-400 group-hover:text-indigo-300'
+                    }`}>
                       {item.description}
                     </div>
                   </div>
@@ -228,7 +224,6 @@ const DepartmentDashboard = ({ user, onLogout }) => {
               <Route path="/" element={<DepartmentOverview user={user} />} />
               <Route path="/new-request" element={<NewRequest user={user} />} />
               <Route path="/my-requests" element={<MyRequests user={user} />} />
-              <Route path="/settings" element={<DepartmentSettings user={user} />} />
               <Route path="*" element={<Navigate to="/department" replace />} />
             </Routes>
           </div>
