@@ -13,6 +13,10 @@ const ItemIssuedReport = () => {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -45,9 +49,25 @@ const ItemIssuedReport = () => {
       const categoriesData = await categoriesResponse.json();
       const transactionsData = transactionsResponse.ok ? await transactionsResponse.json() : [];
 
+      // Fetch stock transactions for each item to get received quantities
+      const inventoryItems = inventoryData.items || inventoryData || [];
+      const stockTransactionsPromises = inventoryItems.map(async (item) => {
+        try {
+          const response = await fetch(`${API_BASE}/inventory/item-transactions/${item.id}/`, { headers: getHeaders() });
+          if (response.ok) {
+            const data = await response.json();
+            return { itemId: item.id, transactions: data.transactions || [] };
+          }
+        } catch (error) {
+          console.error(`Error fetching stock transactions for item ${item.id}:`, error);
+        }
+        return { itemId: item.id, transactions: [] };
+      });
+
+      const stockTransactionsData = await Promise.all(stockTransactionsPromises);
+
       // Fetch damage reports for all items
-      const inventory = inventoryData.items || inventoryData || [];
-      const damageReportsPromises = inventory.map(async (item) => {
+      const damageReportsPromises = inventoryItems.map(async (item) => {
         try {
           const response = await fetch(`${API_BASE}/inventory/damage-reports/${item.id}/`, { headers: getHeaders() });
           if (response.ok) {
@@ -70,14 +90,15 @@ const ItemIssuedReport = () => {
       // Set categories for filtering
       setCategories(categoriesData.results || categoriesData || []);
 
-      // Process and combine the data with damage reports
-      const processedData = processItemData(requestsData, inventoryData, transactionsData, damageReportsData);
+      // Process and combine the data with damage reports and stock transactions
+      const processedData = processItemData(requestsData, inventoryData, transactionsData, damageReportsData, stockTransactionsData);
       setItemDetails(processedData);
       setReportData({ 
         requests: requestsData, 
         inventory: inventoryData, 
         transactions: transactionsData,
-        damageReports: damageReportsData
+        damageReports: damageReportsData,
+        stockTransactions: stockTransactionsData
       });
 
     } catch (error) {
@@ -89,7 +110,7 @@ const ItemIssuedReport = () => {
   };
 
   // Process and combine request and inventory data
-  const processItemData = (requestsData, inventoryData, transactionsData = [], damageReportsData = []) => {
+  const processItemData = (requestsData, inventoryData, transactionsData = [], damageReportsData = [], stockTransactionsData = []) => {
     const requests = requestsData.requests || requestsData || [];
     const inventory = inventoryData.items || inventoryData || [];
     const transactions = transactionsData.results || transactionsData || [];
@@ -98,6 +119,12 @@ const ItemIssuedReport = () => {
     const damageReportsMap = {};
     damageReportsData.forEach(({ itemId, reports }) => {
       damageReportsMap[itemId] = reports;
+    });
+
+    // Create a map of stock transactions by item ID for quick lookup
+    const stockTransactionsMap = {};
+    stockTransactionsData.forEach(({ itemId, transactions }) => {
+      stockTransactionsMap[itemId] = transactions || [];
     });
 
     // Create a map of inventory items for quick lookup
@@ -152,9 +179,10 @@ const ItemIssuedReport = () => {
         }
       });
 
-    // Calculate damage quantities from actual damage reports
+    // Calculate damage quantities and received quantities from actual data
     Object.values(itemStockMap).forEach(item => {
       const itemDamageReports = damageReportsMap[item.id] || [];
+      const itemStockTransactions = stockTransactionsMap[item.id] || [];
       
       // Calculate current month and last month damage quantities
       let currentMonthDamage = 0;
@@ -172,9 +200,27 @@ const ItemIssuedReport = () => {
         }
       });
       
-      // Update damage quantities with actual data
+      // Calculate received quantities from stock transactions
+      let receivedThisMonth = 0;
+      
+      itemStockTransactions.forEach(transaction => {
+        const transactionDate = new Date(transaction.date);
+        const transactionMonth = transactionDate.getMonth();
+        const transactionYear = transactionDate.getFullYear();
+        
+        // Only count transactions that add stock and are positive quantities
+        const isReceivingTransaction = ['received', 'restock', 'purchase'].includes(transaction.transaction_type?.toLowerCase());
+        const isCurrentMonth = transactionMonth === currentMonth && transactionYear === currentYear;
+        
+        if (isReceivingTransaction && isCurrentMonth && transaction.quantity > 0) {
+          receivedThisMonth += transaction.quantity || 0;
+        }
+      });
+      
+      // Update quantities with actual data
       item.currentDamaged = currentMonthDamage;
       item.lastMonthDamaged = lastMonthDamage;
+      item.receivedThisMonth = receivedThisMonth;
       
       // Calculate last month stock (current + issued - received)
       item.lastMonthStock = Math.max(0, item.currentStock + item.issuedThisMonth - item.receivedThisMonth);
@@ -203,31 +249,159 @@ const ItemIssuedReport = () => {
     return months;
   };
 
-  // Filter data by month and category
+  // Filter and recalculate data by month and category
   const getFilteredData = () => {
-    let filtered = itemDetails;
+    let filtered = [...itemDetails];
+
+    // If a specific month is selected, recalculate the data for that month
+    if (selectedMonth && reportData) {
+      const monthIndex = parseInt(selectedMonth);
+      const currentYear = new Date().getFullYear();
+      
+      // Recalculate data for the selected month
+      filtered = recalculateDataForMonth(monthIndex, currentYear);
+    }
 
     // Filter by category
     if (selectedCategory) {
       filtered = filtered.filter(item => item.categoryId === parseInt(selectedCategory));
     }
 
-    // Filter by month - this filters items based on when they had activity in that month
-    if (selectedMonth) {
-      const monthIndex = parseInt(selectedMonth);
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      
-      // Filter items that had transactions or requests in the selected month
-      filtered = filtered.filter(item => {
-        // For now, we'll show all items but this could be enhanced to show
-        // only items that had activity in the selected month
-        // You could add logic here to filter based on transaction dates
-        return true;
-      });
-    }
-
     return filtered;
+  };
+
+  // Recalculate data for a specific month
+  const recalculateDataForMonth = (targetMonth, targetYear) => {
+    if (!reportData) return itemDetails;
+
+    const requests = reportData.requests.requests || reportData.requests || [];
+    const inventory = reportData.inventory.items || reportData.inventory || [];
+    const damageReports = reportData.damageReports || [];
+    const stockTransactions = reportData.stockTransactions || [];
+
+    // Create maps for quick lookup
+    const damageReportsMap = {};
+    damageReports.forEach(({ itemId, reports }) => {
+      damageReportsMap[itemId] = reports;
+    });
+
+    const stockTransactionsMap = {};
+    stockTransactions.forEach(({ itemId, transactions }) => {
+      stockTransactionsMap[itemId] = transactions || [];
+    });
+
+    const itemStockMap = {};
+
+    // Initialize stock data for all inventory items
+    inventory.forEach(item => {
+      if (!itemStockMap[item.id]) {
+        itemStockMap[item.id] = {
+          id: item.id,
+          itemCode: item.item_code || 'N/A',
+          itemName: item.name,
+          unit: item.unit || 'pcs',
+          category: item.category?.name || item.category || 'Uncategorized',
+          categoryId: item.category?.id || null,
+          lastMonthStock: 0,
+          lastMonthDamaged: 0,
+          receivedThisMonth: 0,
+          issuedThisMonth: 0,
+          currentStock: item.current_stock || item.stock || item.quantity || 0,
+          currentDamaged: 0,
+          unitPrice: item.unit_price || 0
+        };
+      }
+    });
+
+    // Calculate previous month values
+    const previousMonth = targetMonth === 0 ? 11 : targetMonth - 1;
+    const previousYear = targetMonth === 0 ? targetYear - 1 : targetYear;
+
+    // Process requests for issued items in the target month
+    requests
+      .filter(request => request.status === 'approved')
+      .forEach(request => {
+        const requestDate = new Date(request.created_at || request.date_requested);
+        const requestMonth = requestDate.getMonth();
+        const requestYear = requestDate.getFullYear();
+
+        if (requestMonth === targetMonth && requestYear === targetYear) {
+          const itemId = typeof request.item === 'object' ? request.item?.id : request.item;
+          if (itemStockMap[itemId]) {
+            itemStockMap[itemId].issuedThisMonth += request.approved_quantity || request.quantity || 0;
+          }
+        }
+      });
+
+    // Calculate damage quantities and received quantities for the target month
+    Object.values(itemStockMap).forEach(item => {
+      const itemDamageReports = damageReportsMap[item.id] || [];
+      const itemStockTransactions = stockTransactionsMap[item.id] || [];
+      
+      // Calculate target month and previous month damage quantities
+      let targetMonthDamage = 0;
+      let previousMonthDamage = 0;
+      
+      itemDamageReports.forEach(report => {
+        const reportDate = new Date(report.date);
+        const reportMonth = reportDate.getMonth();
+        const reportYear = reportDate.getFullYear();
+        
+        if (reportMonth === targetMonth && reportYear === targetYear) {
+          targetMonthDamage += report.damage_quantity || 0;
+        } else if (reportMonth === previousMonth && reportYear === previousYear) {
+          previousMonthDamage += report.damage_quantity || 0;
+        }
+      });
+      
+      // Calculate received quantities for the target month
+      let receivedThisMonth = 0;
+      
+      itemStockTransactions.forEach(transaction => {
+        const transactionDate = new Date(transaction.date);
+        const transactionMonth = transactionDate.getMonth();
+        const transactionYear = transactionDate.getFullYear();
+        
+        // Only count transactions that add stock and are positive quantities
+        const isReceivingTransaction = ['received', 'restock', 'purchase'].includes(transaction.transaction_type?.toLowerCase());
+        const isTargetMonth = transactionMonth === targetMonth && transactionYear === targetYear;
+        
+        if (isReceivingTransaction && isTargetMonth && transaction.quantity > 0) {
+          receivedThisMonth += transaction.quantity || 0;
+        }
+      });
+      
+      // Update quantities with calculated data for the target month
+      item.currentDamaged = targetMonthDamage;
+      item.lastMonthDamaged = previousMonthDamage;
+      item.receivedThisMonth = receivedThisMonth;
+      
+      // Calculate last month stock (current + issued - received)
+      item.lastMonthStock = Math.max(0, item.currentStock + item.issuedThisMonth - item.receivedThisMonth);
+      item.totalValue = item.currentStock * item.unitPrice;
+    });
+
+    return Object.values(itemStockMap);
+  };
+
+  // Get paginated data
+  const getPaginatedData = () => {
+    const filteredData = getFilteredData();
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    
+    return {
+      currentItems: filteredData.slice(indexOfFirstItem, indexOfLastItem),
+      totalItems: filteredData.length,
+      totalPages: Math.ceil(filteredData.length / itemsPerPage),
+      indexOfFirstItem,
+      indexOfLastItem
+    };
+  };
+
+  // Reset pagination when filters change
+  const resetPagination = () => {
+    setCurrentPage(1);
   };
 
   // Export to CSV
@@ -284,7 +458,7 @@ const ItemIssuedReport = () => {
     fetchItemIssuedReport();
   }, []);
 
-  const filteredData = getFilteredData();
+  const { currentItems, totalItems, totalPages, indexOfFirstItem, indexOfLastItem } = getPaginatedData();
 
   if (isLoading) {
     return (
@@ -335,7 +509,10 @@ const ItemIssuedReport = () => {
               </label>
               <select
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
+                onChange={(e) => {
+                  setSelectedMonth(e.target.value);
+                  resetPagination();
+                }}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 <option value="">All Months</option>
@@ -353,7 +530,10 @@ const ItemIssuedReport = () => {
               </label>
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  resetPagination();
+                }}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 <option value="">All Categories</option>
@@ -380,7 +560,7 @@ const ItemIssuedReport = () => {
             
             <button
               onClick={exportToCSV}
-              disabled={filteredData.length === 0}
+              disabled={totalItems === 0}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
             >
               <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -394,6 +574,7 @@ const ItemIssuedReport = () => {
                 onClick={() => {
                   setSelectedMonth('');
                   setSelectedCategory('');
+                  resetPagination();
                 }}
                 className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
               >
@@ -409,7 +590,7 @@ const ItemIssuedReport = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Monthly Stock Movement Report</h3>
           <p className="text-sm text-gray-500 mt-1">
-            Showing {filteredData.length} items
+            Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, totalItems)} of {totalItems} items
             {(selectedMonth || selectedCategory) && (
               <span className="ml-2 text-indigo-600">
                 • Filtered by {selectedMonth && `month`} {selectedCategory && `category`}
@@ -457,7 +638,7 @@ const ItemIssuedReport = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredData.map((item, index) => (
+              {currentItems.map((item, index) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   {/* Item Code */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -541,7 +722,7 @@ const ItemIssuedReport = () => {
             </tbody>
           </table>
           
-          {filteredData.length === 0 && (
+          {totalItems === 0 && (
             <div className="text-center py-12">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -556,7 +737,105 @@ const ItemIssuedReport = () => {
             </div>
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
+                <span className="font-medium">{Math.min(indexOfLastItem, totalItems)}</span> of{' '}
+                <span className="font-medium">{totalItems}</span> results
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                
+                {/* Page Numbers */}
+                <div className="flex space-x-1">
+                  {[...Array(totalPages)].map((_, index) => {
+                    const page = index + 1;
+                    const isCurrentPage = page === currentPage;
+                    
+                    // Show first page, last page, current page, and pages around current
+                    const showPage = page === 1 || 
+                                    page === totalPages || 
+                                    (page >= currentPage - 1 && page <= currentPage + 1);
+                    
+                    if (!showPage) {
+                      // Show ellipsis for gaps
+                      if (page === currentPage - 2 || page === currentPage + 2) {
+                        return (
+                          <span key={page} className="px-3 py-2 text-sm text-gray-500">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    }
+                    
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          isCurrentPage
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Items Per Page Selector */}
+      {totalItems > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <label className="text-sm font-medium text-gray-700">
+                Items per page:
+              </label>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(parseInt(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <div className="text-sm text-gray-500">
+              Page {currentPage} of {totalPages}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

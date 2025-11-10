@@ -22,7 +22,7 @@ const unitOptions = [
 ];
 
 const initialRows = [
-  { sn: 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', unitPrice: '', reason: '' }
+  { sn: 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '0.00', unitPrice: '', reason: '' }
 ];
 
 
@@ -44,7 +44,22 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
   const [validationErrors, setValidationErrors] = useState({});
 
   const handleRowChange = (idx, field, value) => {
-    const updatedRows = rows.map((row, i) => i === idx ? { ...row, [field]: value } : row);
+    const updatedRows = rows.map((row, i) => {
+      if (i === idx) {
+        const updatedRow = { ...row, [field]: value };
+        
+        // Auto-calculate amount when unitPrice or accepted quantity changes
+        if (field === 'unitPrice' || field === 'accepted') {
+          const unitPrice = parseFloat(field === 'unitPrice' ? value : row.unitPrice) || 0;
+          const accepted = parseFloat(field === 'accepted' ? value : row.accepted) || 0;
+          updatedRow.amount = (unitPrice * accepted).toFixed(2);
+        }
+        
+        return updatedRow;
+      }
+      return row;
+    });
+    
     setRows(updatedRows);
 
     // Validate accepted + rejected <= totalReceived
@@ -92,7 +107,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
   };
 
   const addRow = () => {
-    setRows(rows => [...rows, { sn: rows.length + 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '', unitPrice: '', reason: '' }]);
+    setRows(rows => [...rows, { sn: rows.length + 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '0.00', unitPrice: '', reason: '' }]);
   };
 
   const handleFormChange = (e) => {
@@ -151,7 +166,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
       personDelivering: '',
       storekeeper: ''
     });
-    setRows(initialRows);
+    setRows([{ sn: 1, description: '', unit: 'Piece', totalReceived: '', accepted: '', rejected: '', amount: '0.00', unitPrice: '', reason: '' }]);
   };
 
   return (
@@ -245,7 +260,7 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
                 <th className="border px-2 py-1">Accepted</th>
                 <th className="border px-2 py-1">Rejected</th>
                 <th className="border px-2 py-1">Unit Price (TSh)</th>
-                <th className="border px-2 py-1">Amount</th>
+                <th className="border px-2 py-1">Amount (Auto-calculated)</th>
                 <th className="border px-2 py-1">Rejected Reason/Remark</th>
               </tr>
             </thead>
@@ -298,7 +313,15 @@ const GoodReceivingNote = ({ onSubmitNote, suppliers = [] }) => {
                     />
                   </td>
                   <td className="border px-2 py-1"><input type="number" step="0.01" min="0" value={row.unitPrice} onChange={e => handleRowChange(idx, 'unitPrice', e.target.value)} className="w-full" placeholder="0.00" /></td>
-                  <td className="border px-2 py-1"><input value={row.amount} onChange={e => handleRowChange(idx, 'amount', e.target.value)} className="w-full" /></td>
+                  <td className="border px-2 py-1">
+                    <input 
+                      value={row.amount} 
+                      readOnly 
+                      className="w-full bg-gray-100 text-gray-700 cursor-not-allowed" 
+                      placeholder="Auto-calculated"
+                      title="Automatically calculated from Unit Price × Accepted Quantity"
+                    />
+                  </td>
                   <td className="border px-2 py-1"><input value={row.reason} onChange={e => handleRowChange(idx, 'reason', e.target.value)} className="w-full" /></td>
                 </tr>
                 );
