@@ -28,14 +28,12 @@ const ItemIssuedReport = () => {
       setIsLoading(true);
       setError(null);
 
-      // Fetch all required data including damage reports and stock transactions
-      const [requestsResponse, inventoryResponse, categoriesResponse, transactionsResponse, damageReportsResponse, stockTransactionsResponse] = await Promise.all([
+      // Fetch all required data including damage reports for each item
+      const [requestsResponse, inventoryResponse, categoriesResponse, transactionsResponse] = await Promise.all([
         fetch(`${API_BASE}/reports/request-report/`, { headers: getHeaders() }),
         fetch(`${API_BASE}/reports/inventory-report/`, { headers: getHeaders() }),
         fetch(`${API_BASE}/inventory/categories/`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/transactions/`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/damage-reports/`, { headers: getHeaders() }),
-        fetch(`${API_BASE}/inventory/stock-transactions/`, { headers: getHeaders() })
+        fetch(`${API_BASE}/inventory/transactions/`, { headers: getHeaders() })
       ]);
 
       if (!requestsResponse.ok || !inventoryResponse.ok || !categoriesResponse.ok) {
@@ -46,28 +44,40 @@ const ItemIssuedReport = () => {
       const inventoryData = await inventoryResponse.json();
       const categoriesData = await categoriesResponse.json();
       const transactionsData = transactionsResponse.ok ? await transactionsResponse.json() : [];
-      const damageReportsData = damageReportsResponse.ok ? await damageReportsResponse.json() : [];
-      const stockTransactionsData = stockTransactionsResponse.ok ? await stockTransactionsResponse.json() : [];
+
+      // Fetch damage reports for all items
+      const inventory = inventoryData.items || inventoryData || [];
+      const damageReportsPromises = inventory.map(async (item) => {
+        try {
+          const response = await fetch(`${API_BASE}/inventory/damage-reports/${item.id}/`, { headers: getHeaders() });
+          if (response.ok) {
+            const data = await response.json();
+            return { itemId: item.id, reports: data.reports || [] };
+          }
+        } catch (error) {
+          console.error(`Error fetching damage reports for item ${item.id}:`, error);
+        }
+        return { itemId: item.id, reports: [] };
+      });
+
+      const damageReportsData = await Promise.all(damageReportsPromises);
 
       console.log('Requests Data:', requestsData);
       console.log('Inventory Data:', inventoryData);
       console.log('Categories Data:', categoriesData);
       console.log('Transactions Data:', transactionsData);
-      console.log('Damage Reports Data:', damageReportsData);
-      console.log('Stock Transactions Data:', stockTransactionsData);
 
       // Set categories for filtering
       setCategories(categoriesData.results || categoriesData || []);
 
-      // Process and combine the data
-      const processedData = processItemData(requestsData, inventoryData, transactionsData, damageReportsData, stockTransactionsData);
+      // Process and combine the data with damage reports
+      const processedData = processItemData(requestsData, inventoryData, transactionsData, damageReportsData);
       setItemDetails(processedData);
       setReportData({ 
         requests: requestsData, 
         inventory: inventoryData, 
         transactions: transactionsData,
-        damageReports: damageReportsData,
-        stockTransactions: stockTransactionsData
+        damageReports: damageReportsData
       });
 
     } catch (error) {
@@ -79,12 +89,16 @@ const ItemIssuedReport = () => {
   };
 
   // Process and combine request and inventory data
-  const processItemData = (requestsData, inventoryData, transactionsData = [], damageReportsData = [], stockTransactionsData = []) => {
+  const processItemData = (requestsData, inventoryData, transactionsData = [], damageReportsData = []) => {
     const requests = requestsData.requests || requestsData || [];
     const inventory = inventoryData.items || inventoryData || [];
     const transactions = transactionsData.results || transactionsData || [];
-    const damageReports = damageReportsData.results || damageReportsData || [];
-    const stockTransactions = stockTransactionsData.results || stockTransactionsData || [];
+
+    // Create a map of damage reports by item ID for quick lookup
+    const damageReportsMap = {};
+    damageReportsData.forEach(({ itemId, reports }) => {
+      damageReportsMap[itemId] = reports;
+    });
 
     // Create a map of inventory items for quick lookup
     const inventoryMap = {};
@@ -122,55 +136,6 @@ const ItemIssuedReport = () => {
       }
     });
 
-    // Process stock transactions for received items this month
-    stockTransactions.forEach(transaction => {
-      const transactionDate = new Date(transaction.date);
-      const transactionMonth = transactionDate.getMonth();
-      const transactionYear = transactionDate.getFullYear();
-
-      if (transactionMonth === currentMonth && transactionYear === currentYear) {
-        const itemId = transaction.item?.id || transaction.item_id;
-        if (itemStockMap[itemId] && (transaction.transaction_type === 'received' || transaction.transaction_type === 'IN')) {
-          itemStockMap[itemId].receivedThisMonth += Math.abs(transaction.quantity || 0);
-        }
-      }
-    });
-
-    // Process damage reports for damaged items this month
-    damageReports.forEach(report => {
-      // Handle both array of all items' reports and specific item reports
-      let reportsToProcess = [];
-      
-      if (Array.isArray(report.reports)) {
-        // If report has a reports array, use that
-        reportsToProcess = report.reports;
-      } else if (report.item_id || report.item) {
-        // If it's a single report
-        reportsToProcess = [report];
-      }
-
-      reportsToProcess.forEach(damageReport => {
-        const reportDate = new Date(damageReport.date);
-        const reportMonth = reportDate.getMonth();
-        const reportYear = reportDate.getFullYear();
-
-        if (reportMonth === currentMonth && reportYear === currentYear) {
-          const itemId = damageReport.item_id || damageReport.item?.id;
-          if (itemStockMap[itemId]) {
-            itemStockMap[itemId].currentDamaged += damageReport.damage_quantity || 0;
-          }
-        }
-
-        // Also check for last month damage
-        if (reportMonth === lastMonth && reportYear === lastMonthYear) {
-          const itemId = damageReport.item_id || damageReport.item?.id;
-          if (itemStockMap[itemId]) {
-            itemStockMap[itemId].lastMonthDamaged += damageReport.damage_quantity || 0;
-          }
-        }
-      });
-    });
-
     // Process requests for issued items this month
     requests
       .filter(request => request.status === 'approved')
@@ -187,8 +152,31 @@ const ItemIssuedReport = () => {
         }
       });
 
-    // Calculate last month stock (current + issued - received)
+    // Calculate damage quantities from actual damage reports
     Object.values(itemStockMap).forEach(item => {
+      const itemDamageReports = damageReportsMap[item.id] || [];
+      
+      // Calculate current month and last month damage quantities
+      let currentMonthDamage = 0;
+      let lastMonthDamage = 0;
+      
+      itemDamageReports.forEach(report => {
+        const reportDate = new Date(report.date);
+        const reportMonth = reportDate.getMonth();
+        const reportYear = reportDate.getFullYear();
+        
+        if (reportMonth === currentMonth && reportYear === currentYear) {
+          currentMonthDamage += report.damage_quantity || 0;
+        } else if (reportMonth === lastMonth && reportYear === lastMonthYear) {
+          lastMonthDamage += report.damage_quantity || 0;
+        }
+      });
+      
+      // Update damage quantities with actual data
+      item.currentDamaged = currentMonthDamage;
+      item.lastMonthDamaged = lastMonthDamage;
+      
+      // Calculate last month stock (current + issued - received)
       item.lastMonthStock = Math.max(0, item.currentStock + item.issuedThisMonth - item.receivedThisMonth);
       item.totalValue = item.currentStock * item.unitPrice;
     });
@@ -260,7 +248,7 @@ const ItemIssuedReport = () => {
       'Received This Month',
       'Issued This Month',
       'Current Stock',
-      'Current Damaged',
+      'Current Month Damaged',
       'Category'
     ];
 
@@ -465,7 +453,7 @@ const ItemIssuedReport = () => {
                 <th className="px-6 py-2"></th>
                 <th className="px-6 py-2"></th>
                 <th className="px-6 py-2 text-center text-xs font-medium text-gray-400">Quantity</th>
-                <th className="px-6 py-2 text-center text-xs font-medium text-gray-400">Damaged</th>
+                <th className="px-6 py-2 text-center text-xs font-medium text-gray-400">Damaged This Month</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
