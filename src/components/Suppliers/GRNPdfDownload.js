@@ -3,30 +3,70 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const GRNPdfDownload = ({ grn, onDownload }) => {
-  const generatePDF = () => {
+  const generatePDF = async () => {
     if (!grn) {
       alert('No GRN data available for download');
       return;
     }
 
     const doc = new jsPDF();
-    
-    // Company Header
-    doc.setFontSize(20);
-    doc.setFont("helvetica", "bold");
-    doc.text('CGCLA WAREHOUSE MANAGEMENT', 20, 20);
-    
-    doc.setFontSize(16);
-    doc.text('GOODS RECEIVING NOTE', 20, 30);
-    
-    // GRN ID and Date
+
+    // Try to load logo from public folder
+    let logoDataUrl = null;
+    try {
+      const res = await fetch('/cgcla.jpg');
+      if (res.ok) {
+        const blob = await res.blob();
+        logoDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch (err) {
+      console.warn('Could not load logo for GRN PDF:', err);
+    }
+
+    // Company Header: logo (left) + contact info (right)
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'JPEG', 20, 12, 30, 30);
+      } catch (e) {
+        try { doc.addImage(logoDataUrl, 'PNG', 20, 12, 30, 30); } catch (e2) { /* ignore */ }
+      }
+    }
+
+    // Contact / agency block
+    const contactX = 60;
+    let contactY = 14;
     doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.text(`GRN #${grn.id}`, 20, 45);
-    doc.text(`Date: ${new Date(grn.date_received).toLocaleDateString()}`, 150, 45);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CGCLA WAREHOUSE MANAGEMENT', contactX, contactY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    contactY += 6;
+    doc.text('146 Bububu Road, 70403 Urban West, Zanzibar, Maruhubi S.L.P 759', contactX, contactY);
+    contactY += 5;
+    doc.text('Email: info@cgcla.go.tz', contactX, contactY);
+    contactY += 5;
+    doc.text('Tel. No: +255-24-2238123', contactX, contactY);
+    contactY += 5;
+    doc.text('Fax: +255-24-2238124', contactX, contactY);
+
+    // Title centered below header
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GOODS RECEIVING NOTE', 105, 52, { align: 'center' });
     
-    // Horizontal line
-    doc.line(20, 50, 190, 50);
+  // GRN ID and Date
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`GRN #${grn.id}`, 20, 62);
+  doc.text(`Date: ${new Date(grn.date_received).toLocaleDateString()}`, 150, 62);
+
+  // Horizontal line
+  doc.line(20, 66, 190, 66);
     
     // GRN Details Section
     doc.setFontSize(14);
@@ -70,8 +110,8 @@ const GRNPdfDownload = ({ grn, onDownload }) => {
     doc.text('Status:', 110, rightColumnY + 32);
     doc.text(grn.status || 'Pending', 145, rightColumnY + 32);
     
-    // Items Table
-    const tableStartY = 120;
+  // Items Table
+  const tableStartY = 130;
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text('Items Received', 20, tableStartY);
@@ -135,8 +175,8 @@ const GRNPdfDownload = ({ grn, onDownload }) => {
       }
     });
     
-    // Summary Section
-    const finalY = doc.lastAutoTable.finalY + 20;
+  // Summary Section
+  const finalY = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : tableStartY + 60) + 20;
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text('Summary', 20, finalY);

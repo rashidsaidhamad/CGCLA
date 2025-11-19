@@ -33,7 +33,7 @@ const DownloadSelectedPDF = ({ selectedRequests, onDownload, inventoryItems, dep
   };
 
   // Function to generate and download PDF
-  const generatePDF = () => {
+  const generatePDF = async () => {
     if (!selectedRequests || selectedRequests.length === 0) {
       alert('Please select at least one request to download.');
       return;
@@ -41,33 +41,75 @@ const DownloadSelectedPDF = ({ selectedRequests, onDownload, inventoryItems, dep
 
     try {
       const doc = new jsPDF();
-      
-      // Company Header
-      doc.setFontSize(20);
-      doc.text('CGCLA WAREHOUSE', 105, 20, { align: 'center' });
-      
-      doc.setFontSize(16);
+
+      // Attempt to load logo from public folder and convert to data URL
+      let logoDataUrl = null;
+      try {
+        const logoResponse = await fetch('/cgcla.jpg');
+        if (logoResponse.ok) {
+          const blob = await logoResponse.blob();
+          // convert blob to base64
+          logoDataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch (imgErr) {
+        console.warn('Could not load logo for PDF header:', imgErr);
+      }
+
+      // Company Header with logo and contact details
+      doc.setFontSize(12);
+      if (logoDataUrl) {
+        // left logo
+        try {
+          doc.addImage(logoDataUrl, 'JPEG', 20, 12, 28, 28);
+        } catch (e) {
+          // some browsers may provide PNG - try PNG fallback
+          try { doc.addImage(logoDataUrl, 'PNG', 20, 12, 28, 28); } catch (e2) { /* ignore */ }
+        }
+      }
+
+      // Agency contact block (right/top)
+      const contactX = 52;
+      let contactY = 14;
       doc.setFont(undefined, 'bold');
-      doc.text('ISSUED VOUCHER', 105, 35, { align: 'center' });
-      
-      // Reset font to normal
+      doc.setFontSize(12);
+      doc.text('CGCLA WAREHOUSE', contactX, contactY);
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      contactY += 6;
+      doc.text('146 Bububu Road, 70403 Urban West, Zanzibar, Maruhubi S.L.P 759', contactX, contactY);
+      contactY += 5;
+      doc.text('Email: info@cgcla.go.tz', contactX, contactY);
+      contactY += 5;
+      doc.text('Tel. No: +255-24-2238123', contactX, contactY);
+      contactY += 5;
+      doc.text('Fax: +255-24-2238124', contactX, contactY);
+
+      // Centered title below header
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text('ISSUED VOUCHER', 105, 46, { align: 'center' });
       doc.setFont(undefined, 'normal');
       
-      // Date and summary info
-      doc.setFontSize(10);
-      doc.text(`Issue Date: ${new Date().toLocaleDateString()}`, 20, 50);
-      doc.text(`Total Items: ${selectedRequests.length}`, 20, 57);
+  // Date and summary info
+  doc.setFontSize(10);
+  doc.text(`Issue Date: ${new Date().toLocaleDateString()}`, 20, 58);
+  doc.text(`Total Items: ${selectedRequests.length}`, 20, 65);
       
       // Issued by and Approved by section (right side)
       doc.text('Issued by: ____________________', 120, 50);
       doc.text('Date: ____________________', 120, 57);
       
-      doc.text('Approved by: ____________________', 120, 70);
-      doc.text('Date: ____________________', 120, 77);
+  doc.text('Approved by: ____________________', 120, 73);
+  doc.text('Date: ____________________', 120, 80);
       
-      // Add a horizontal line to separate header from content
-      doc.setLineWidth(0.5);
-      doc.line(20, 82, 190, 82);
+  // Add a horizontal line to separate header from content
+  doc.setLineWidth(0.5);
+  doc.line(20, 86, 190, 86);
 
       // Try to use autoTable, fallback to basic text if it fails
       try {
@@ -111,7 +153,7 @@ const DownloadSelectedPDF = ({ selectedRequests, onDownload, inventoryItems, dep
         autoTable(doc, {
           head: [['#', 'Requester', 'Department', 'Item', 'Quantity Details', 'Status', 'Request Date', 'Action Date']],
           body: tableData,
-          startY: 85,
+    startY: 92,
           styles: {
             fontSize: 8,
             cellPadding: 2
@@ -158,9 +200,9 @@ const DownloadSelectedPDF = ({ selectedRequests, onDownload, inventoryItems, dep
         });
       }
       
-      // Add footer with signature lines
-      const pageHeight = doc.internal.pageSize.height;
-      const footerY = pageHeight - 50;
+  // Add footer with signature lines
+  const pageHeight = doc.internal.pageSize.height;
+  const footerY = pageHeight - 50;
       
       // Add signature section at bottom
       doc.setFontSize(10);
