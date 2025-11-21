@@ -12,21 +12,21 @@ const DepartmentDashboard = ({ user, onLogout }) => {
   const menuItems = [
     { 
       id: 'overview', 
-      name: 'Overview', 
+      name: 'OVERVIEW', 
       icon: '📊', 
       path: '/department',
       description: 'Department overview and statistics'
     },
     { 
       id: 'new-request', 
-      name: 'New Request', 
+      name: 'NEW REQUEST', 
       icon: '➕', 
       path: '/department/new-request',
       description: 'Create new item requests'
     },
     { 
       id: 'my-requests', 
-      name: 'My Requests', 
+      name: 'MY REQUESTS', 
       icon: '📋', 
       path: '/department/my-requests',
       description: 'View and track your requests'
