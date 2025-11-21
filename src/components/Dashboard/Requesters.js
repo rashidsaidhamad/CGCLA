@@ -537,9 +537,9 @@ const Requesters = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg p-8 text-white">
+      <div className="bg-white rounded-xl shadow-lg p-8 text-black">
         <h1 className="text-3xl font-bold mb-2">Incoming Requests</h1>
-        <p className="text-blue-100 text-lg">
+        <p className="text-gray-600 text-lg">
           Manage and respond to item requests from departments
         </p>
       </div>

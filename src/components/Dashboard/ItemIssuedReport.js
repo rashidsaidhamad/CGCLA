@@ -490,13 +490,7 @@ const ItemIssuedReport = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-8 text-white">
-        <h1 className="text-3xl font-bold mb-2">Monthly Stock Report</h1>
-        <p className="text-blue-100 text-lg">
-          Comprehensive monthly stock movement and damage tracking report
-        </p>
-      </div>
+      {/* Header removed as requested */}
 
       {/* Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

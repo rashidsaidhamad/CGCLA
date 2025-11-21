@@ -486,9 +486,9 @@ const Reports = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-xl shadow-lg p-8 text-white">
+      <div className="bg-white rounded-xl shadow-lg p-8 text-black">
         <h1 className="text-3xl font-bold mb-2">Reports & Analytics</h1>
-        <p className="text-indigo-100 text-lg">
+        <p className="text-gray-600 text-lg">
           Comprehensive reports and data insights
         </p>
       </div>

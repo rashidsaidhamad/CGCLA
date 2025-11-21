@@ -13,35 +13,35 @@ const EmployeeDashboard = ({ user, onLogout }) => {
   const menuItems = [
     { 
       id: 'requesters', 
-      name: 'Requesters', 
+      name: 'REQUESTERS', 
       icon: '👥', 
       path: '/dashboard/requesters',
       description: 'Manage item requesters'
     },
     { 
       id: 'reports', 
-      name: 'Reports', 
+      name: 'REPORTS', 
       icon: '📊', 
       path: '/dashboard/reports',
       description: 'Analytics and reports'
     },
     { 
       id: 'item-issued-report', 
-      name: 'Item Issued Report', 
+      name: 'ITEM ISSUED REPORT', 
       icon: '📋', 
       path: '/dashboard/item-issued-report',
       description: 'Detailed item issued tracking'
     },
     { 
       id: 'stock-balance', 
-      name: 'Stock Balance', 
+      name: 'STOCK BALANCE', 
       icon: '📦', 
       path: '/dashboard/stock-balance',
       description: 'Inventory stock management'
     },
     {
       id: 'suppliers',
-      name: 'Suppliers',
+      name: 'SUPPLIERS',
       icon: '🚚',
       path: '/dashboard/suppliers',
       description: 'Goods Receiving Note & Supplier Info'

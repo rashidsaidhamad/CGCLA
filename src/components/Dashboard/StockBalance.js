@@ -349,27 +349,7 @@ const StockBalance = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl shadow-lg p-8 text-white">
-        <h1 className="text-3xl font-bold mb-2">Stock Balance with Batch Tracking</h1>
-        <p className="text-green-100 text-lg">
-          Monitor inventory levels, stock movements, and individual batch prices
-        </p>
-        <div className="mt-4 flex items-center space-x-6 text-sm">
-          <div className="flex items-center">
-            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-            </svg>
-            <span>Each item tracks multiple price batches separately</span>
-          </div>
-          <div className="flex items-center">
-            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd" />
-            </svg>
-            <span>FIFO pricing ensures oldest batches are used first</span>
-          </div>
-        </div>
-      </div>
+      {/* Header removed as requested */}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">

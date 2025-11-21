@@ -5,6 +5,7 @@ import GoodReceivingNote from './GoodReceivingNote';
 import SupplierFormModal from './SupplierForm/SupplierFormModal';
 import SuppliersTable from './SuppliersTable/SuppliersTable';
 import GRNPdfDownload from './GRNPdfDownload';
+import Categorie from './Categorie';
 
 const SuppliersDashboard = () => {
   const navigate = useNavigate();
@@ -598,7 +599,8 @@ const SuppliersDashboard = () => {
   const tabs = [
     { id: 'view-grn', name: 'View GRNs', icon: '📋' },
     { id: 'create-grn', name: 'Create GRN', icon: '➕' },
-    { id: 'manage-suppliers', name: 'Manage Suppliers', icon: '🏢' }
+    { id: 'manage-suppliers', name: 'Manage Suppliers', icon: '🏢' },
+    { id: 'manage-categories', name: 'Manage Categories', icon: '🗂️' }
   ];
 
   const formatDate = (dateString) => {
@@ -621,21 +623,7 @@ const SuppliersDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl shadow-lg p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">📦 Goods Receiving Notes</h1>
-            <p className="text-green-100">
-              Manage incoming goods, deliveries, and stock updates
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold">{grns.length}</div>
-            <div className="text-sm text-green-200">Total GRNs</div>
-          </div>
-        </div>
-      </div>
+      {/* Header removed as requested */}
 
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -1284,6 +1272,13 @@ const SuppliersDashboard = () => {
           {/* Create GRN Tab */}
           {activeTab === 'create-grn' && (
             <GoodReceivingNote onSubmitNote={handleCreateGRN} suppliers={suppliers} />
+          )}
+
+          {/* Manage Categories Tab */}
+          {activeTab === 'manage-categories' && (
+            <div className="p-6">
+              <Categorie />
+            </div>
           )}
 
           {/* Manage Suppliers Tab */}
