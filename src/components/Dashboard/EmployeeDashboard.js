@@ -69,7 +69,7 @@ const EmployeeDashboard = ({ user, onLogout }) => {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white drop-shadow-sm">CGCLA</h2>
-                <p className="text-sm text-indigo-300">Warehouse System</p>
+                <p className="text-sm text-indigo-300">Inventory Management System</p>
               </div>
             </div>
           )}
@@ -185,7 +185,7 @@ const EmployeeDashboard = ({ user, onLogout }) => {
                 {menuItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
               </h1>
               <p className="text-sm text-gray-600 mt-1">
-                CGCLA Warehouse Management System
+                CGCLA Inventory Management System
               </p>
             </div>
             <div className="flex items-center space-x-4">

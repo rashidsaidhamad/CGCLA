@@ -261,14 +261,28 @@ const SuppliersDashboard = () => {
   // Check if item exists by item code
   const checkItemExists = async (itemCode) => {
     try {
-      const response = await fetch(`${API_BASE}/inventory/items/?search=${itemCode}`, {
+      const query = encodeURIComponent((itemCode || '').trim());
+      const resp = await fetch(`${API_BASE}/inventory/items/?search=${query}`, {
         headers: getHeaders(),
       });
-      
-      if (response.ok) {
-        const data = await response.json();
+
+      if (resp.ok) {
+        const data = await resp.json();
         const items = data.results || data;
-        return items.find(item => item.item_code === itemCode) || null;
+
+        // Match by exact item_code OR by name (case-insensitive, exact or contains)
+        const q = (itemCode || '').trim().toLowerCase();
+        const found = items.find(it => {
+          const code = (it.item_code || '').toLowerCase();
+          const name = (it.name || '').toLowerCase();
+          return (
+            (code && code === q) ||
+            (name && name === q) ||
+            (name && q !== '' && name.includes(q))
+          );
+        });
+
+        return found || null;
       }
       return null;
     } catch (error) {
@@ -280,18 +294,38 @@ const SuppliersDashboard = () => {
   // Open stock form for specific items
   const openStockForm = (grnId, items) => {
     const grnPONumber = getPONumberFromGRN(grnId);
-    
+
+    // Try to determine default supplier for this GRN
+    const grn = grns.find(g => g.id === grnId);
+    let defaultSupplierId = null;
+    if (grn) {
+      // Common possible fields where supplier could be stored
+      if (grn.supplier && grn.supplier.id) defaultSupplierId = grn.supplier.id;
+      else if (grn.supplier_id) defaultSupplierId = grn.supplier_id;
+      else if (grn.sender_id) defaultSupplierId = grn.sender_id;
+
+      // If we don't have an id but we have a sender name, try to match by supplier name from loaded suppliers
+      if (!defaultSupplierId && grn.sender_details && suppliers && suppliers.length > 0) {
+        const senderName = String(grn.sender_details).toLowerCase();
+        const matched = suppliers.find(s => String(s.name).toLowerCase() === senderName || String(s.name).toLowerCase().includes(senderName) || senderName.includes(String(s.name).toLowerCase()));
+        if (matched) defaultSupplierId = matched.id;
+      }
+    }
+
     setStockFormData({
       grnId,
       poNumber: grnPONumber,
       items: items.filter(item => item.accepted > 0),
-      formItems: items.filter(item => item.accepted > 0).map(item => ({
+      formItems: items.filter(item => item.accepted > 0).map((item, idx) => ({
         ...item,
+        // index of this item within the GRN's items array (relative to filtered accepted items)
+        grn_item_index: idx,
         existingItemCode: '', // New field for checking existing items
         existingItem: null, // Store found existing item
         isExistingItem: false, // Flag to track if this is an update
         category_id: '',
-        supplier_id: '',
+        // Pre-fill supplier_id from GRN when available
+        supplier_id: defaultSupplierId || '',
         location: 'Warehouse',
         min_stock: 10,
         max_stock: 1000,
@@ -320,12 +354,12 @@ const SuppliersDashboard = () => {
     if (existingItem) {
       // Pre-fill form with existing item data
       updateFormItem(index, 'category_id', existingItem.category?.id || '');
-      updateFormItem(index, 'supplier_id', existingItem.supplier?.id || '');
       updateFormItem(index, 'location', existingItem.location || 'Warehouse');
       updateFormItem(index, 'min_stock', existingItem.min_stock || 10);
       updateFormItem(index, 'max_stock', existingItem.max_stock || 1000);
-      updateFormItem(index, 'unit_price', existingItem.unit_price || 0);
-      alert(`Item found: ${existingItem.name}. Stock will be updated instead of creating new item.`);
+      // Intentionally do NOT copy supplier_id or unit_price to the form so the user can
+      // choose the supplier and set the correct unit price for this GRN intake.
+      alert(`Item found: ${existingItem.name}. Stock will be updated instead of creating new item. Please confirm supplier and unit price.`);
     } else {
       alert(`Item with code "${itemCode}" not found. A new item will be created.`);
     }
@@ -361,7 +395,13 @@ const SuppliersDashboard = () => {
           const result = await response.json();
           console.log(`Successfully updated item:`, result);
           
-          // Create stock transaction for the update
+          // Create stock transaction for the update. Include supplier and GRN reference so
+          // the transaction preserves the supplier and unit_price used during Add-to-Stock.
+          // Determine supplier name for readability/persistence (backend may prefer name)
+          const supplierNameExisting = (item.supplier_id && suppliers && suppliers.length > 0)
+            ? (suppliers.find(s => s.id === Number(item.supplier_id)) || {}).name
+            : (item.supplier_name || null);
+
           await fetch(`${API_BASE}/inventory/add-stock/`, {
             method: 'POST',
             headers: getHeaders(),
@@ -369,7 +409,16 @@ const SuppliersDashboard = () => {
               item_id: item.existingItem.id,
               quantity: parseInt(item.accepted),
               unit_price: parseFloat(item.unit_price),
-              date: new Date().toISOString().split('T')[0]
+              date: new Date().toISOString().split('T')[0],
+              // Include supplier if the user selected one in the stock form
+              supplier_id: item.supplier_id && item.supplier_id !== '' ? parseInt(item.supplier_id) : null,
+              supplier_name: supplierNameExisting || null,
+              // Provide a clear reference to the originating GRN so transaction -> GRN linkage exists
+              grn_id: stockFormData.grnId,
+              // Also include the GRN item identifier (code/description) to help match
+              grn_item_index: item.grn_item_index ?? null,
+              grn_item_code: item.item_code || item.code || null,
+              grn_item_description: item.description || item.name || null,
             }),
           });
           
@@ -406,6 +455,33 @@ const SuppliersDashboard = () => {
           
           const result = await response.json();
           console.log(`Successfully created item:`, result);
+
+          // After creating a new item, create an initial stock transaction that records
+          // the supplier and unit_price used when adding this GRN's items to stock.
+          try {
+            const supplierNameNew = (item.supplier_id && suppliers && suppliers.length > 0)
+              ? (suppliers.find(s => s.id === Number(item.supplier_id)) || {}).name
+              : (item.supplier_name || null);
+
+            await fetch(`${API_BASE}/inventory/add-stock/`, {
+              method: 'POST',
+              headers: getHeaders(),
+              body: JSON.stringify({
+                item_id: result.id,
+                quantity: parseInt(item.accepted) || 0,
+                unit_price: parseFloat(item.unit_price) || 0,
+                date: new Date().toISOString().split('T')[0],
+                supplier_id: item.supplier_id && item.supplier_id !== '' ? parseInt(item.supplier_id) : null,
+                supplier_name: supplierNameNew || null,
+                grn_id: stockFormData.grnId,
+                grn_item_index: item.grn_item_index ?? null,
+                grn_item_code: item.item_code || item.code || null,
+                grn_item_description: item.description || item.name || null,
+              }),
+            });
+          } catch (txnErr) {
+            console.warn('Failed to create initial stock transaction for new item:', txnErr);
+          }
         }
       }
       

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ItemBatchDetails from './ItemBatchDetails';
-import AddStockModal from './AddStockModal';
+//import AddStockModal from './AddStockModal';
 import ViewTransactionsModal from './ViewTransactionsModal';
 import DamageReportModal from './DamageReportModal';
 
@@ -613,15 +613,6 @@ const StockBalance = () => {
                           <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-10">
                             <div className="py-1">
                               <button
-                                onClick={() => handleAddStock(item)}
-                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                              >
-                                <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                Add Stock
-                              </button>
-                              <button
                                 onClick={() => handleViewTransactions(item)}
                                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                               >
@@ -709,12 +700,7 @@ const StockBalance = () => {
       )}
 
       {/* Add Stock Modal */}
-      <AddStockModal
-        isOpen={showAddStockModal}
-        onClose={() => setShowAddStockModal(false)}
-        selectedItem={selectedItem}
-        onSuccess={handleModalSuccess}
-      />
+      
 
       {/* View Transactions Modal */}
       <ViewTransactionsModal
