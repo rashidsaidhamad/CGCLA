@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SuppliersTable = ({ suppliers, onEdit, onDelete, onAddFirst }) => {
+const SuppliersTable = ({ suppliers, onEdit, onDelete, onAddFirst, searchQuery }) => {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full border border-gray-200 rounded-lg">
@@ -22,14 +22,20 @@ const SuppliersTable = ({ suppliers, onEdit, onDelete, onAddFirst }) => {
             <tr>
               <td colSpan="3" className="px-4 py-12 text-center text-gray-500">
                 <div className="text-6xl mb-4">🏢</div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No suppliers found</h3>
-                <p className="text-gray-500 mb-4">Start by adding your first supplier</p>
-                <button
-                  onClick={onAddFirst}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Add First Supplier
-                </button>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {searchQuery ? 'No suppliers match your search' : 'No suppliers found'}
+                </h3>
+                {!searchQuery && (
+                  <>
+                    <p className="text-gray-500 mb-4">Start by adding your first supplier</p>
+                    <button
+                      onClick={onAddFirst}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Add First Supplier
+                    </button>
+                  </>
+                )}
               </td>
             </tr>
           ) : (

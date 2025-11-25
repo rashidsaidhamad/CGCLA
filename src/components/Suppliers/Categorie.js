@@ -7,6 +7,7 @@ const Categorie = () => {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '' });
+  const [searchQuery, setSearchQuery] = useState('');
 
   const API_BASE = 'http://127.0.0.1:8000/api';
   const getAuthToken = () => localStorage.getItem('access_token');
@@ -108,6 +109,11 @@ const Categorie = () => {
     }
   };
 
+  // Filter categories based on search query
+  const filteredCategories = categories.filter(cat => 
+    cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -120,6 +126,37 @@ const Categorie = () => {
             ➕ New Category
           </button>
         </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="mb-4">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search categories by name..."
+            className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <svg
+            className="absolute left-3 top-3 h-5 w-5 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+        </div>
+        {searchQuery && (
+          <p className="text-sm text-gray-600 mt-2">
+            Found {filteredCategories.length} categor{filteredCategories.length === 1 ? 'y' : 'ies'}
+          </p>
+        )}
       </div>
 
       {isLoading && <div className="text-sm text-gray-600">Loading...</div>}
@@ -135,7 +172,7 @@ const Categorie = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {categories.map(cat => (
+            {filteredCategories.map(cat => (
               <tr key={cat.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 text-sm text-gray-900">{cat.name}</td>
                 <td className="px-6 py-4 text-sm text-gray-700">{cat.description || '-'}</td>
@@ -145,9 +182,11 @@ const Categorie = () => {
                 </td>
               </tr>
             ))}
-            {categories.length === 0 && (
+            {filteredCategories.length === 0 && (
               <tr>
-                <td colSpan="2" className="px-6 py-8 text-center text-gray-500">No categories found</td>
+                <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
+                  {searchQuery ? 'No categories match your search' : 'No categories found'}
+                </td>
               </tr>
             )}
           </tbody>

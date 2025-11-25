@@ -10,13 +10,14 @@ const Reports = () => {
   const [selectedReport, setSelectedReport] = useState('issued');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [dateRange, setDateRange] = useState({
-    startDate: '',
-    endDate: ''
-  });
-  const [selectedTimeFilter, setSelectedTimeFilter] = useState('all');
-  const [selectedMonth, setSelectedMonth] = useState('');
-  const [selectedWeek, setSelectedWeek] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('all');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [selectedUnit, setSelectedUnit] = useState('all');
+  const [departments, setDepartments] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -26,112 +27,93 @@ const Reports = () => {
     'Content-Type': 'application/json',
   });
 
-  // Generate month options for the current year
-  const getMonthOptions = () => {
-    const months = [
-      { value: '1', label: 'January' },
-      { value: '2', label: 'February' },
-      { value: '3', label: 'March' },
-      { value: '4', label: 'April' },
-      { value: '5', label: 'May' },
-      { value: '6', label: 'June' },
-      { value: '7', label: 'July' },
-      { value: '8', label: 'August' },
-      { value: '9', label: 'September' },
-      { value: '10', label: 'October' },
-      { value: '11', label: 'November' },
-      { value: '12', label: 'December' }
-    ];
-    return months;
-  };
-
-  // Generate week options for the current year
-  const getWeekOptions = () => {
-    const weeks = [];
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    
-    // Get the first day of the year
-    const firstDay = new Date(currentYear, 0, 1);
-    const firstWeekStart = new Date(firstDay);
-    
-    // Adjust to start on Monday
-    const dayOfWeek = firstDay.getDay();
-    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    firstWeekStart.setDate(firstDay.getDate() + daysToMonday);
-    
-    for (let week = 1; week <= 52; week++) {
-      const weekStart = new Date(firstWeekStart);
-      weekStart.setDate(firstWeekStart.getDate() + (week - 1) * 7);
+  // Fetch departments for filtering
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/departments/departments/`, {
+        headers: getHeaders(),
+      });
       
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      
-      // Only include weeks that haven't passed current date + some future weeks
-      if (weekStart <= new Date(currentDate.getTime() + (14 * 24 * 60 * 60 * 1000))) {
-        weeks.push({
-          value: week.toString(),
-          label: `Week ${week} (${weekStart.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })})`
-        });
+      if (response.ok) {
+        const data = await response.json();
+        setDepartments(data);
       }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
     }
-    return weeks;
   };
 
-  // Filter data based on selected time filter
-  const filterDataByTime = (data) => {
-    console.log('filterDataByTime called with:', { data, selectedTimeFilter, selectedMonth, selectedWeek });
+  // Fetch units for filtering
+  const fetchUnits = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/items/`, {
+        headers: getHeaders(),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Extract unique units from items
+        const uniqueUnits = [...new Set(data.map(item => item.unit).filter(Boolean))];
+        setUnits(uniqueUnits);
+      }
+    } catch (error) {
+      console.error('Error fetching units:', error);
+    }
+  };
+
+  // Filter data based on month, year, department, and unit
+  const filterData = (data) => {
+    if (!data) return data;
+
+    let filteredItems = data.requests || data.items || data || [];
     
-    if (!data || selectedTimeFilter === 'all') return data;
-
-    const now = new Date();
-    let startDate, endDate;
-
-    if (selectedTimeFilter === 'month' && selectedMonth) {
-      const year = now.getFullYear();
-      startDate = new Date(year, parseInt(selectedMonth) - 1, 1);
-      endDate = new Date(year, parseInt(selectedMonth), 0);
-      console.log('Month filter:', { year, month: selectedMonth, startDate, endDate });
-    } else if (selectedTimeFilter === 'week' && selectedWeek) {
-      const year = now.getFullYear();
-      const firstDay = new Date(year, 0, 1);
-      const firstWeekStart = new Date(firstDay);
-      
-      const dayOfWeek = firstDay.getDay();
-      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      firstWeekStart.setDate(firstDay.getDate() + daysToMonday);
-      
-      startDate = new Date(firstWeekStart);
-      startDate.setDate(firstWeekStart.getDate() + (parseInt(selectedWeek) - 1) * 7);
-      
-      endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
-      console.log('Week filter:', { week: selectedWeek, startDate, endDate });
+    // Apply month and year filter
+    if (selectedMonth !== 'all') {
+      filteredItems = filteredItems.filter(item => {
+        const itemDate = new Date(item.created_at || item.date_requested || item.date);
+        const itemMonth = itemDate.getMonth(); // 0-11
+        const itemYear = itemDate.getFullYear();
+        
+        return itemMonth === parseInt(selectedMonth) && itemYear === selectedYear;
+      });
+    } else {
+      // Filter by year only
+      filteredItems = filteredItems.filter(item => {
+        const itemDate = new Date(item.created_at || item.date_requested || item.date);
+        const itemYear = itemDate.getFullYear();
+        return itemYear === selectedYear;
+      });
     }
 
-    if (startDate && endDate) {
-      // Filter based on the data structure
-      if (data.items) {
-        const filteredItems = data.items.filter(item => {
-          const itemDate = new Date(item.created_at || item.date_requested || item.date);
-          const isInRange = itemDate >= startDate && itemDate <= endDate;
-          console.log('Filtering item:', { itemDate, startDate, endDate, isInRange });
-          return isInRange;
-        });
-        console.log('Filtered items count:', filteredItems.length);
-        return {
-          ...data,
-          items: filteredItems
-        };
-      } else if (Array.isArray(data)) {
-        return data.filter(item => {
-          const itemDate = new Date(item.created_at || item.date_requested || item.date);
-          return itemDate >= startDate && itemDate <= endDate;
+    // Apply department filter (for issued reports)
+    if (selectedDepartment !== 'all' && selectedReport === 'issued') {
+      filteredItems = filteredItems.filter(item => {
+        const user = item.requester || item.user;
+        const dept = user?.department;
+        return dept?.id === parseInt(selectedDepartment) || dept?.name === selectedDepartment;
+      });
+    }
+
+    // Apply unit filter
+    if (selectedUnit !== 'all') {
+      if (selectedReport === 'inventory') {
+        filteredItems = filteredItems.filter(item => item.unit === selectedUnit);
+      } else if (selectedReport === 'issued') {
+        filteredItems = filteredItems.filter(item => {
+          const itemObj = typeof item.item === 'object' ? item.item : null;
+          return itemObj?.unit === selectedUnit;
         });
       }
     }
 
-    return data;
+    // Return filtered data in the same structure as original
+    if (data.requests) {
+      return { ...data, requests: filteredItems };
+    } else if (data.items) {
+      return { ...data, items: filteredItems };
+    } else {
+      return filteredItems;
+    }
   };
 
   // Fetch specific report
@@ -171,20 +153,21 @@ const Reports = () => {
   // Initial load
   useEffect(() => {
     fetchReport(selectedReport);
+    fetchDepartments();
+    fetchUnits();
   }, [selectedReport]);
 
   // Apply filters whenever data or filter values change
   useEffect(() => {
     const rawData = reportData[`${selectedReport}Report`];
     if (rawData) {
-      const filtered = filterDataByTime(rawData);
+      const filtered = filterData(rawData);
       setFilteredData(filtered);
-      console.log('Applying filters:', { selectedTimeFilter, selectedMonth, selectedWeek });
-      console.log('Filtered data:', filtered);
+      setCurrentPage(1); // Reset to first page when filters change
     } else {
       setFilteredData(null);
     }
-  }, [reportData, selectedReport, selectedTimeFilter, selectedMonth, selectedWeek]);
+  }, [reportData, selectedReport, selectedMonth, selectedYear, selectedDepartment, selectedUnit]);
 
   // Handle report type change
   const handleReportChange = (reportType) => {
@@ -313,6 +296,12 @@ const Reports = () => {
   const renderInventoryReport = (data) => {
     const items = data.items || data || [];
     
+    // Pagination
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = items.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(items.length / itemsPerPage);
+    
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -353,7 +342,7 @@ const Reports = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {items.map((item, index) => (
+              {currentItems.map((item, index) => (
                 <tr key={item.id || index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {item.name}
@@ -386,6 +375,74 @@ const Reports = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-lg">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(indexOfLastItem, items.length)}</span> of{' '}
+                  <span className="font-medium">{items.length}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Previous</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                        currentPage === i + 1
+                          ? 'z-10 bg-indigo-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                          : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Next</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -393,6 +450,12 @@ const Reports = () => {
   // Render issued report (requests)
   const renderIssuedReport = (data) => {
     const requests = data.requests || data || [];
+    
+    // Pagination
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentRequests = requests.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(requests.length / itemsPerPage);
     
     return (
       <div className="space-y-6">
@@ -434,7 +497,7 @@ const Reports = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {requests.map((request, index) => (
+              {currentRequests.map((request, index) => (
                 <tr key={request.id || index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {new Date(request.created_at || request.date).toLocaleDateString()}
@@ -479,6 +542,74 @@ const Reports = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-lg">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(indexOfLastItem, requests.length)}</span> of{' '}
+                  <span className="font-medium">{requests.length}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Previous</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                        currentPage === i + 1
+                          ? 'z-10 bg-indigo-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                          : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Next</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -511,67 +642,88 @@ const Reports = () => {
               </select>
             </div>
 
-            {/* Time Filter */}
+            {/* Month Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Time Filter
+                Month
               </label>
               <select
-                value={selectedTimeFilter}
-                onChange={(e) => {
-                  setSelectedTimeFilter(e.target.value);
-                  if (e.target.value !== 'month') setSelectedMonth('');
-                  if (e.target.value !== 'week') setSelectedWeek('');
-                }}
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
-                <option value="all">All Time</option>
-                <option value="month">By Month</option>
-                <option value="week">By Week</option>
+                <option value="all">All Months</option>
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
               </select>
             </div>
 
-            {/* Month Filter */}
-            {selectedTimeFilter === 'month' && (
+            {/* Year Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Year
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                {[...Array(5)].map((_, i) => {
+                  const year = new Date().getFullYear() - i;
+                  return <option key={year} value={year}>{year}</option>;
+                })}
+              </select>
+            </div>
+
+            {/* Department Filter */}
+            {selectedReport === 'issued' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Month
+                  Department
                 </label>
                 <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  value={selectedDepartment}
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[180px]"
                 >
-                  <option value="">Choose Month</option>
-                  {getMonthOptions().map(month => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
+                  <option value="all">All Departments</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
                     </option>
                   ))}
                 </select>
               </div>
             )}
 
-            {/* Week Filter */}
-            {selectedTimeFilter === 'week' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Week
-                </label>
-                <select
-                  value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[250px]"
-                >
-                  <option value="">Choose Week</option>
-                  {getWeekOptions().map(week => (
-                    <option key={week.value} value={week.value}>
-                      {week.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* Unit Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Unit
+              </label>
+              <select
+                value={selectedUnit}
+                onChange={(e) => setSelectedUnit(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[140px]"
+              >
+                <option value="all">All Units</option>
+                {units.map(unit => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -611,14 +763,16 @@ const Reports = () => {
               </h2>
               <p className="text-sm text-gray-500 mt-1">
                 Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
-                {selectedTimeFilter !== 'all' && (
+                {(selectedMonth !== 'all' || selectedDepartment !== 'all' || selectedUnit !== 'all') && (
                   <span className="ml-2">
-                    • Filtered by {selectedTimeFilter === 'month' ? `${getMonthOptions().find(m => m.value === selectedMonth)?.label || 'Month'}` : selectedTimeFilter === 'week' ? `Week ${selectedWeek}` : selectedTimeFilter}
+                    • Filtered by {selectedMonth !== 'all' ? `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][parseInt(selectedMonth)]} ${selectedYear}` : `Year ${selectedYear}`}
+                    {selectedDepartment !== 'all' && selectedReport === 'issued' && ` • ${departments.find(d => d.id === parseInt(selectedDepartment))?.name || 'Department'}`}
+                    {selectedUnit !== 'all' && ` • Unit: ${selectedUnit}`}
                   </span>
                 )}
               </p>
             </div>
-            {selectedTimeFilter !== 'all' && (
+            {(selectedMonth !== 'all' || selectedDepartment !== 'all' || selectedUnit !== 'all') && (
               <div className="flex items-center space-x-2">
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                   <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -628,13 +782,14 @@ const Reports = () => {
                 </span>
                 <button
                   onClick={() => {
-                    setSelectedTimeFilter('all');
-                    setSelectedMonth('');
-                    setSelectedWeek('');
+                    setSelectedMonth('all');
+                    setSelectedDepartment('all');
+                    setSelectedUnit('all');
+                    setSelectedYear(new Date().getFullYear());
                   }}
                   className="text-xs text-gray-500 hover:text-gray-700 underline"
                 >
-                  Clear Filter
+                  Clear Filters
                 </button>
               </div>
             )}

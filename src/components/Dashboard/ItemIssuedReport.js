@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import Reports from './Reports';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
 const ItemIssuedReport = () => {
   const [reportData, setReportData] = useState(null);
   const [itemDetails, setItemDetails] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [dateFilter, setDateFilter] = useState({
-    startDate: '',
-    endDate: ''
-  });
   const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]);
   
@@ -47,7 +43,6 @@ const ItemIssuedReport = () => {
       const requestsData = await requestsResponse.json();
       const inventoryData = await inventoryResponse.json();
       const categoriesData = await categoriesResponse.json();
-      const transactionsData = transactionsResponse.ok ? await transactionsResponse.json() : [];
 
       // Fetch stock transactions for each item to get received quantities
       const inventoryItems = inventoryData.items || inventoryData || [];
@@ -85,18 +80,18 @@ const ItemIssuedReport = () => {
       console.log('Requests Data:', requestsData);
       console.log('Inventory Data:', inventoryData);
       console.log('Categories Data:', categoriesData);
-      console.log('Transactions Data:', transactionsData);
 
       // Set categories for filtering
-      setCategories(categoriesData.results || categoriesData || []);
+      const categoriesList = categoriesData.results || categoriesData || [];
+      console.log('Categories list for dropdown:', categoriesList);
+      setCategories(categoriesList);
 
       // Process and combine the data with damage reports and stock transactions
-      const processedData = processItemData(requestsData, inventoryData, transactionsData, damageReportsData, stockTransactionsData);
+      const processedData = processItemData(requestsData, inventoryData, damageReportsData, stockTransactionsData);
       setItemDetails(processedData);
       setReportData({ 
         requests: requestsData, 
-        inventory: inventoryData, 
-        transactions: transactionsData,
+        inventory: inventoryData,
         damageReports: damageReportsData,
         stockTransactions: stockTransactionsData
       });
@@ -110,10 +105,9 @@ const ItemIssuedReport = () => {
   };
 
   // Process and combine request and inventory data
-  const processItemData = (requestsData, inventoryData, transactionsData = [], damageReportsData = [], stockTransactionsData = []) => {
+  const processItemData = (requestsData, inventoryData, damageReportsData = [], stockTransactionsData = []) => {
     const requests = requestsData.requests || requestsData || [];
     const inventory = inventoryData.items || inventoryData || [];
-    const transactions = transactionsData.results || transactionsData || [];
 
     // Create a map of damage reports by item ID for quick lookup
     const damageReportsMap = {};
@@ -249,29 +243,8 @@ const ItemIssuedReport = () => {
     return months;
   };
 
-  // Filter and recalculate data by month and category
-  const getFilteredData = () => {
-    let filtered = [...itemDetails];
-
-    // If a specific month is selected, recalculate the data for that month
-    if (selectedMonth && reportData) {
-      const monthIndex = parseInt(selectedMonth);
-      const currentYear = new Date().getFullYear();
-      
-      // Recalculate data for the selected month
-      filtered = recalculateDataForMonth(monthIndex, currentYear);
-    }
-
-    // Filter by category
-    if (selectedCategory) {
-      filtered = filtered.filter(item => item.categoryId === parseInt(selectedCategory));
-    }
-
-    return filtered;
-  };
-
-  // Recalculate data for a specific month
-  const recalculateDataForMonth = (targetMonth, targetYear) => {
+  // Recalculate data for a specific month and year
+  const recalculateDataForMonth = useCallback((targetMonth, targetYear) => {
     if (!reportData) return itemDetails;
 
     const requests = reportData.requests.requests || reportData.requests || [];
@@ -279,7 +252,15 @@ const ItemIssuedReport = () => {
     const damageReports = reportData.damageReports || [];
     const stockTransactions = reportData.stockTransactions || [];
 
-    // Create maps for quick lookup
+    console.log('recalculateDataForMonth - Sample inventory items:', inventory.slice(0, 2).map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      categoryStructure: typeof item.category,
+      categoryId: item.category?.id,
+      categoryIdType: typeof item.category?.id
+    })));
+
     const damageReportsMap = {};
     damageReports.forEach(({ itemId, reports }) => {
       damageReportsMap[itemId] = reports;
@@ -295,13 +276,28 @@ const ItemIssuedReport = () => {
     // Initialize stock data for all inventory items
     inventory.forEach(item => {
       if (!itemStockMap[item.id]) {
+        // Extract categoryId - handle both object and primitive category
+        let categoryId = null;
+        let categoryName = 'Uncategorized';
+        
+        if (item.category) {
+          if (typeof item.category === 'object') {
+            categoryId = item.category.id || null;
+            categoryName = item.category.name || 'Uncategorized';
+          } else {
+            categoryName = item.category;
+          }
+        }
+        
+        console.log(`Item ${item.name}: categoryId=${categoryId}, categoryName=${categoryName}`);
+        
         itemStockMap[item.id] = {
           id: item.id,
           itemCode: item.item_code || 'N/A',
           itemName: item.name,
           unit: item.unit || 'pcs',
-          category: item.category?.name || item.category || 'Uncategorized',
-          categoryId: item.category?.id || null,
+          category: categoryName,
+          categoryId: categoryId,
           lastMonthStock: 0,
           lastMonthDamaged: 0,
           receivedThisMonth: 0,
@@ -313,80 +309,190 @@ const ItemIssuedReport = () => {
       }
     });
 
-    // Calculate previous month values
-    const previousMonth = targetMonth === 0 ? 11 : targetMonth - 1;
-    const previousYear = targetMonth === 0 ? targetYear - 1 : targetYear;
+    // If targetMonth is null, process entire year
+    if (targetMonth === null) {
+      requests
+        .filter(request => request.status === 'approved')
+        .forEach(request => {
+          const requestDate = new Date(request.created_at || request.date_requested);
+          const requestYear = requestDate.getFullYear();
 
-    // Process requests for issued items in the target month
-    requests
-      .filter(request => request.status === 'approved')
-      .forEach(request => {
-        const requestDate = new Date(request.created_at || request.date_requested);
-        const requestMonth = requestDate.getMonth();
-        const requestYear = requestDate.getFullYear();
-
-        if (requestMonth === targetMonth && requestYear === targetYear) {
-          const itemId = typeof request.item === 'object' ? request.item?.id : request.item;
-          if (itemStockMap[itemId]) {
-            itemStockMap[itemId].issuedThisMonth += request.approved_quantity || request.quantity || 0;
+          if (requestYear === targetYear) {
+            const itemId = typeof request.item === 'object' ? request.item?.id : request.item;
+            if (itemStockMap[itemId]) {
+              itemStockMap[itemId].issuedThisMonth += request.approved_quantity || request.quantity || 0;
+            }
           }
-        }
-      });
+        });
 
-    // Calculate damage quantities and received quantities for the target month
-    Object.values(itemStockMap).forEach(item => {
-      const itemDamageReports = damageReportsMap[item.id] || [];
-      const itemStockTransactions = stockTransactionsMap[item.id] || [];
-      
-      // Calculate target month and previous month damage quantities
-      let targetMonthDamage = 0;
-      let previousMonthDamage = 0;
-      
-      itemDamageReports.forEach(report => {
-        const reportDate = new Date(report.date);
-        const reportMonth = reportDate.getMonth();
-        const reportYear = reportDate.getFullYear();
+      Object.values(itemStockMap).forEach(item => {
+        const itemDamageReports = damageReportsMap[item.id] || [];
+        const itemStockTransactions = stockTransactionsMap[item.id] || [];
         
-        if (reportMonth === targetMonth && reportYear === targetYear) {
-          targetMonthDamage += report.damage_quantity || 0;
-        } else if (reportMonth === previousMonth && reportYear === previousYear) {
-          previousMonthDamage += report.damage_quantity || 0;
-        }
+        let yearDamage = 0;
+        let receivedThisYear = 0;
+        
+        itemDamageReports.forEach(report => {
+          const reportDate = new Date(report.date);
+          const reportYear = reportDate.getFullYear();
+          
+          if (reportYear === targetYear) {
+            yearDamage += report.damage_quantity || 0;
+          }
+        });
+        
+        itemStockTransactions.forEach(transaction => {
+          const transactionDate = new Date(transaction.date);
+          const transactionYear = transactionDate.getFullYear();
+          
+          const isReceivingTransaction = ['received', 'restock', 'purchase'].includes(transaction.transaction_type?.toLowerCase());
+          
+          if (isReceivingTransaction && transactionYear === targetYear && transaction.quantity > 0) {
+            receivedThisYear += transaction.quantity || 0;
+          }
+        });
+        
+        item.currentDamaged = yearDamage;
+        item.receivedThisMonth = receivedThisYear;
+        item.lastMonthStock = Math.max(0, item.currentStock + item.issuedThisMonth - item.receivedThisMonth);
+        item.totalValue = item.currentStock * item.unitPrice;
       });
-      
-      // Calculate received quantities for the target month
-      let receivedThisMonth = 0;
-      
-      itemStockTransactions.forEach(transaction => {
-        const transactionDate = new Date(transaction.date);
-        const transactionMonth = transactionDate.getMonth();
-        const transactionYear = transactionDate.getFullYear();
+    } else {
+      const previousMonth = targetMonth === 0 ? 11 : targetMonth - 1;
+      const previousYear = targetMonth === 0 ? targetYear - 1 : targetYear;
+
+      requests
+        .filter(request => request.status === 'approved')
+        .forEach(request => {
+          const requestDate = new Date(request.created_at || request.date_requested);
+          const requestMonth = requestDate.getMonth();
+          const requestYear = requestDate.getFullYear();
+
+          if (requestMonth === targetMonth && requestYear === targetYear) {
+            const itemId = typeof request.item === 'object' ? request.item?.id : request.item;
+            if (itemStockMap[itemId]) {
+              itemStockMap[itemId].issuedThisMonth += request.approved_quantity || request.quantity || 0;
+            }
+          }
+        });
+
+      Object.values(itemStockMap).forEach(item => {
+        const itemDamageReports = damageReportsMap[item.id] || [];
+        const itemStockTransactions = stockTransactionsMap[item.id] || [];
         
-        // Only count transactions that add stock and are positive quantities
-        const isReceivingTransaction = ['received', 'restock', 'purchase'].includes(transaction.transaction_type?.toLowerCase());
-        const isTargetMonth = transactionMonth === targetMonth && transactionYear === targetYear;
+        let targetMonthDamage = 0;
+        let previousMonthDamage = 0;
         
-        if (isReceivingTransaction && isTargetMonth && transaction.quantity > 0) {
-          receivedThisMonth += transaction.quantity || 0;
-        }
+        itemDamageReports.forEach(report => {
+          const reportDate = new Date(report.date);
+          const reportMonth = reportDate.getMonth();
+          const reportYear = reportDate.getFullYear();
+          
+          if (reportMonth === targetMonth && reportYear === targetYear) {
+            targetMonthDamage += report.damage_quantity || 0;
+          } else if (reportMonth === previousMonth && reportYear === previousYear) {
+            previousMonthDamage += report.damage_quantity || 0;
+          }
+        });
+        
+        let receivedThisMonth = 0;
+        
+        itemStockTransactions.forEach(transaction => {
+          const transactionDate = new Date(transaction.date);
+          const transactionMonth = transactionDate.getMonth();
+          const transactionYear = transactionDate.getFullYear();
+          
+          const isReceivingTransaction = ['received', 'restock', 'purchase'].includes(transaction.transaction_type?.toLowerCase());
+          const isTargetMonth = transactionMonth === targetMonth && transactionYear === targetYear;
+          
+          if (isReceivingTransaction && isTargetMonth && transaction.quantity > 0) {
+            receivedThisMonth += transaction.quantity || 0;
+          }
+        });
+        
+        item.currentDamaged = targetMonthDamage;
+        item.lastMonthDamaged = previousMonthDamage;
+        item.receivedThisMonth = receivedThisMonth;
+        item.lastMonthStock = Math.max(0, item.currentStock + item.issuedThisMonth - item.receivedThisMonth);
+        item.totalValue = item.currentStock * item.unitPrice;
       });
-      
-      // Update quantities with calculated data for the target month
-      item.currentDamaged = targetMonthDamage;
-      item.lastMonthDamaged = previousMonthDamage;
-      item.receivedThisMonth = receivedThisMonth;
-      
-      // Calculate last month stock (current + issued - received)
-      item.lastMonthStock = Math.max(0, item.currentStock + item.issuedThisMonth - item.receivedThisMonth);
-      item.totalValue = item.currentStock * item.unitPrice;
-    });
+    }
 
     return Object.values(itemStockMap);
-  };
+  }, [reportData, itemDetails]);
+
+  // Filter and recalculate data by month, year, and category using useMemo
+  const filteredData = useMemo(() => {
+    console.log('=== Filtering Data ===');
+    console.log('itemDetails length:', itemDetails.length);
+    console.log('selectedMonth:', selectedMonth);
+    console.log('selectedYear:', selectedYear);
+    console.log('selectedCategory:', selectedCategory);
+    
+    let filtered = [...itemDetails];
+    
+    // If a specific month is selected or year is different from current year, recalculate the data for that period
+    const currentYear = new Date().getFullYear();
+    const shouldRecalculate = selectedMonth !== '' || selectedYear !== currentYear;
+    
+    console.log('Should recalculate?', shouldRecalculate, '(currentYear:', currentYear, ')');
+    
+    if (shouldRecalculate && reportData) {
+      const monthIndex = selectedMonth !== '' ? parseInt(selectedMonth) : null;
+      const targetYear = selectedYear;
+      
+      console.log('Recalculating for month:', monthIndex, 'year:', targetYear);
+      filtered = recalculateDataForMonth(monthIndex, targetYear);
+      console.log('After recalculation, items count:', filtered.length);
+    }
+
+    // Filter by category
+    if (selectedCategory !== '') {
+      const categoryId = parseInt(selectedCategory);
+      console.log('Filtering by categoryId:', categoryId, 'type:', typeof categoryId);
+      console.log('Before category filter:', filtered.length, 'items');
+      
+      // Debug: show first 3 items with their categories
+      console.log('First 3 items:', filtered.slice(0, 3).map(item => ({
+        id: item.id,
+        name: item.itemName,
+        categoryId: item.categoryId,
+        categoryIdType: typeof item.categoryId,
+        category: item.category
+      })));
+      
+      // Count items by categoryId
+      const categoryCount = {};
+      filtered.forEach(item => {
+        const catId = item.categoryId;
+        categoryCount[catId] = (categoryCount[catId] || 0) + 1;
+      });
+      console.log('Items grouped by categoryId:', categoryCount);
+      
+      filtered = filtered.filter(item => {
+        const itemCategoryId = item.categoryId;
+        const matches = itemCategoryId !== null && itemCategoryId !== undefined && itemCategoryId === categoryId;
+        return matches;
+      });
+      
+      console.log('After category filter:', filtered.length, 'items');
+      if (filtered.length > 0) {
+        console.log('Filtered items:', filtered.map(item => ({
+          id: item.id,
+          name: item.itemName,
+          categoryId: item.categoryId
+        })));
+      } else {
+        console.log('No items matched the category filter!');
+      }
+    }
+
+    console.log('=== Final filtered data:', filtered.length, 'items ===');
+    return filtered;
+  }, [itemDetails, selectedMonth, selectedYear, selectedCategory, reportData, recalculateDataForMonth]);
 
   // Get paginated data
   const getPaginatedData = () => {
-    const filteredData = getFilteredData();
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     
@@ -406,8 +512,6 @@ const ItemIssuedReport = () => {
 
   // Export to CSV
   const exportToCSV = () => {
-    const filteredData = getFilteredData();
-    
     if (filteredData.length === 0) {
       alert('No data to export');
       return;
@@ -456,7 +560,20 @@ const ItemIssuedReport = () => {
   // Initial load
   useEffect(() => {
     fetchItemIssuedReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Debug: Monitor filter changes
+  useEffect(() => {
+    console.log('=== Filter Changed ===');
+    console.log('selectedMonth:', selectedMonth);
+    console.log('selectedYear:', selectedYear);
+    console.log('selectedCategory:', selectedCategory, 'type:', typeof selectedCategory);
+    console.log('categories available:', categories.length);
+    if (categories.length > 0) {
+      console.log('Available categories:', categories.map(c => ({ id: c.id, name: c.name })));
+    }
+  }, [selectedMonth, selectedYear, selectedCategory, categories]);
 
   const { currentItems, totalItems, totalPages, indexOfFirstItem, indexOfLastItem } = getPaginatedData();
 
@@ -497,6 +614,25 @@ const ItemIssuedReport = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
           {/* Filters */}
           <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Filter by Year
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(parseInt(e.target.value));
+                  resetPagination();
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                {[...Array(5)].map((_, i) => {
+                  const year = new Date().getFullYear() - i;
+                  return <option key={year} value={year}>{year}</option>;
+                })}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Filter by Month
@@ -563,10 +699,11 @@ const ItemIssuedReport = () => {
               Export CSV
             </button>
 
-            {(selectedMonth || selectedCategory) && (
+            {(selectedMonth !== '' || selectedCategory !== '' || selectedYear !== new Date().getFullYear()) && (
               <button
                 onClick={() => {
                   setSelectedMonth('');
+                  setSelectedYear(new Date().getFullYear());
                   setSelectedCategory('');
                   resetPagination();
                 }}
@@ -585,9 +722,11 @@ const ItemIssuedReport = () => {
           <h3 className="text-lg font-semibold text-gray-900">Monthly Stock Movement Report</h3>
           <p className="text-sm text-gray-500 mt-1">
             Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, totalItems)} of {totalItems} items
-            {(selectedMonth || selectedCategory) && (
+            {(selectedMonth !== '' || selectedCategory !== '' || selectedYear !== new Date().getFullYear()) && (
               <span className="ml-2 text-indigo-600">
-                • Filtered by {selectedMonth && `month`} {selectedCategory && `category`}
+                • Filtered by {selectedYear !== new Date().getFullYear() && `year ${selectedYear}`}
+                {selectedMonth !== '' && ` • ${getMonthOptions().find(m => m.value === selectedMonth)?.label || 'month'}`}
+                {selectedCategory !== '' && ` • category`}
               </span>
             )}
           </p>
@@ -723,7 +862,7 @@ const ItemIssuedReport = () => {
               </svg>
               <h3 className="mt-2 text-sm font-medium text-gray-900">No data available</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {(selectedMonth || selectedCategory) 
+                {(selectedMonth !== '' || selectedCategory !== '' || selectedYear !== new Date().getFullYear()) 
                   ? 'No items found for the selected filters.'
                   : 'No stock movement data found.'
                 }

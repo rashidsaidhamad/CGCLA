@@ -6,6 +6,8 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10); // Items per page
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -193,6 +195,7 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
   useEffect(() => {
     const filtered = filterTransactionsByDate(transactions, selectedMonth, selectedYear);
     setFilteredTransactions(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
   }, [transactions, selectedMonth, selectedYear]);
 
   // Download transactions as CSV
@@ -203,7 +206,7 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
     }
 
     // CSV headers
-    const headers = ['Date', 'Transaction Type', 'Quantity', 'Unit Price (TSh)', 'Supplier', 'Total Price (TSh)', 'Performed By'];
+    const headers = ['Date', 'Transaction Type', 'Quantity', 'Unit Price (TSh)', 'Supplier', 'Total Price (TSh)'];
     
     // CSV rows
     const rows = filteredTransactions.map(t => [
@@ -212,8 +215,7 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
       `${t.quantity > 0 ? '+' : ''}${t.quantity}`,
       t.unit_price !== undefined && t.unit_price !== null ? Number(t.unit_price).toFixed(2) : 'N/A',
       t.supplier_name || 'N/A',
-      t.unit_price !== undefined && t.unit_price !== null ? (Math.abs(Number(t.quantity) || 0) * Number(t.unit_price)).toFixed(2) : 'N/A',
-      t.performed_by || 'System'
+      t.unit_price !== undefined && t.unit_price !== null ? (Math.abs(Number(t.quantity) || 0) * Number(t.unit_price)).toFixed(2) : 'N/A'
     ]);
 
     // Combine headers and rows
@@ -251,8 +253,41 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
       setFilteredTransactions([]);
       setSelectedMonth('all'); // Reset filters
       setSelectedYear(new Date().getFullYear());
+      setCurrentPage(1); // Reset pagination
     }
   }, [isOpen]);
+
+  // Calculate pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentTransactions = filteredTransactions.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+
+  // Calculate total amount for all filtered transactions
+  const calculateTotalAmount = () => {
+    return filteredTransactions.reduce((total, transaction) => {
+      if (transaction.unit_price !== undefined && transaction.unit_price !== null) {
+        const amount = Math.abs(Number(transaction.quantity) || 0) * Number(transaction.unit_price);
+        return total + amount;
+      }
+      return total;
+    }, 0);
+  };
+
+  const totalAmount = calculateTotalAmount();
+
+  // Pagination handlers
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
+  const handlePageClick = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
 
   if (!isOpen || !selectedItem) return null;
 
@@ -340,9 +375,14 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
             </div>
           ) : (
             <>
-              {/* Filter summary */}
-              <div className="mb-2 text-sm text-gray-600">
-                Showing {filteredTransactions.length} of {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+              {/* Filter summary and Total */}
+              <div className="mb-4 flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredTransactions.length)} of {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}
+                </div>
+                <div className="text-sm font-semibold text-gray-900">
+                  Total Amount: <span className="text-blue-600">{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TSh</span>
+                </div>
               </div>
               
               <div className="overflow-x-auto">
@@ -355,11 +395,10 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price (TSh)</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Price (TSh)</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performed By</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTransactions.length > 0 ? filteredTransactions.map((transaction, index) => (
+                  {currentTransactions.length > 0 ? currentTransactions.map((transaction, index) => (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(transaction.date).toLocaleDateString()}
@@ -401,13 +440,10 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                           : 'N/A'
                         }
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {transaction.performed_by || 'System'}
-                      </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                         <div className="flex flex-col items-center">
                           <svg className="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -421,6 +457,71 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
+                <div className="text-sm text-gray-700">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  
+                  {/* Page Numbers */}
+                  <div className="flex space-x-1">
+                    {[...Array(totalPages)].map((_, index) => {
+                      const page = index + 1;
+                      const isCurrentPage = page === currentPage;
+                      
+                      // Show first page, last page, current page, and pages around current
+                      const showPage = page === 1 || 
+                                      page === totalPages || 
+                                      (page >= currentPage - 1 && page <= currentPage + 1);
+                      
+                      if (!showPage) {
+                        // Show ellipsis for gaps
+                        if (page === currentPage - 2 || page === currentPage + 2) {
+                          return (
+                            <span key={page} className="px-2 py-1 text-sm text-gray-500">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      }
+                      
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => handlePageClick(page)}
+                          className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                            isCurrentPage
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
             </>
           )}
 
