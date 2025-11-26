@@ -89,23 +89,18 @@ const DownloadSelectedPDF = ({ selectedRequests, onDownload, inventoryItems, dep
       contactY += 5;
       doc.text('Fax: +255-24-2238124', contactX, contactY);
 
-      // Centered title below header
-      doc.setFontSize(14);
-      doc.setFont(undefined, 'bold');
-      doc.text('ISSUED VOUCHER', 105, 46, { align: 'center' });
-      doc.setFont(undefined, 'normal');
+    
       
   // Date and summary info
   doc.setFontSize(10);
   doc.text(`Issue Date: ${new Date().toLocaleDateString()}`, 20, 58);
   doc.text(`Total Items: ${selectedRequests.length}`, 20, 65);
       
-      // Issued by and Approved by section (right side)
-      doc.text('Issued by: ____________________', 120, 50);
-      doc.text('Date: ____________________', 120, 57);
-      
-  doc.text('Approved by: ____________________', 120, 73);
-  doc.text('Date: ____________________', 120, 80);
+  // Centered title below date/summary info
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.text('ISSUED VOUCHER', 105, 76, { align: 'center' });
+  doc.setFont(undefined, 'normal');
       
   // Add a horizontal line to separate header from content
   doc.setLineWidth(0.5);

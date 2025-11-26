@@ -177,57 +177,419 @@ const Reports = () => {
     }
   };
 
-  // Export report as CSV
-  const exportToCSV = (data, filename) => {
-    if (!data) {
-      alert('No data to export');
+  // Print report
+  const printReport = () => {
+    const currentData = getCurrentReportData();
+    if (!currentData) {
+      alert('No data to print');
       return;
     }
 
-    let csvData = [];
-    let csvFilename = filename;
-
-    // Handle different data structures
+    const monthName = selectedMonth === 'all' ? 'All Months' : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][parseInt(selectedMonth)];
+    const departmentName = selectedDepartment !== 'all' ? departments.find(d => d.id === parseInt(selectedDepartment))?.name || 'All Departments' : 'All Departments';
+    
+    const printWindow = window.open('', '_blank');
+    
+    let reportContent = '';
+    
     if (selectedReport === 'issued') {
-      // For issued reports, extract the items array
-      csvData = data.items || data.requests || data || [];
-      csvFilename = 'issued_items_report';
-    } else {
-      // For other reports
-      csvData = Array.isArray(data) ? data : (data.items || []);
+      const requests = currentData.requests || currentData || [];
+      reportContent = `
+        <table>
+          <thead>
+            <tr>
+              <th>Date Issued</th>
+              <th>Requester</th>
+              <th>Department</th>
+              <th>Item</th>
+              <th class="text-center">Quantity</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${requests.map(request => {
+              const user = request.requester || request.user;
+              const userName = user?.first_name && user?.last_name 
+                ? `${user.first_name} ${user.last_name}`
+                : user?.username || user?.email || 'N/A';
+              const dept = user?.department || request.department;
+              const deptName = dept?.name || 'N/A';
+              const itemName = typeof request.item === 'object' && request.item !== null 
+                ? request.item.name || request.item.item_name || `Item ID: ${request.item.id}`
+                : request.item_name || 'N/A';
+              
+              return `
+                <tr>
+                  <td>${new Date(request.created_at || request.date).toLocaleDateString()}</td>
+                  <td>${userName}</td>
+                  <td>${deptName}</td>
+                  <td>${itemName}</td>
+                  <td class="text-center">${request.quantity}</td>
+                  <td>
+                    <span class="badge badge-${request.status === 'approved' ? 'approved' : request.status === 'rejected' ? 'rejected' : 'pending'}">
+                      ${request.status || 'pending'}
+                    </span>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+        
+        <div class="summary">
+          <div class="summary-grid">
+            <div class="summary-item">
+              <span class="summary-label">Total Issued:</span>
+              <span class="summary-value">${requests.length}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Pending:</span>
+              <span class="summary-value">${requests.filter(r => r.status === 'pending').length}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Approved:</span>
+              <span class="summary-value">${requests.filter(r => r.status === 'approved').length}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Rejected:</span>
+              <span class="summary-value">${requests.filter(r => r.status === 'rejected').length}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (selectedReport === 'inventory') {
+      const items = currentData.items || currentData || [];
+      reportContent = `
+        <table>
+          <thead>
+            <tr>
+              <th>Item Name</th>
+              <th>Category</th>
+              <th class="text-center">Quantity</th>
+              <th class="text-right">Unit Price (TSh)</th>
+              <th class="text-right">Total Value (TSh)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${item.category?.name || 'N/A'}</td>
+                <td class="text-center">${item.quantity}</td>
+                <td class="text-right">${formatCurrency(item.unit_price)}</td>
+                <td class="text-right">${formatCurrency((item.quantity || 0) * (item.unit_price || 0))}</td>
+                <td>
+                  <span class="badge badge-${item.quantity === 0 ? 'out' : item.quantity <= 10 ? 'low' : 'in'}">
+                    ${item.quantity === 0 ? 'Out of Stock' : item.quantity <= 10 ? 'Low Stock' : 'In Stock'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="summary">
+          <div class="summary-grid">
+            <div class="summary-item">
+              <span class="summary-label">Total Items:</span>
+              <span class="summary-value">${items.length}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">In Stock:</span>
+              <span class="summary-value">${items.filter(item => item.quantity > 0).length}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Low Stock:</span>
+              <span class="summary-value">${items.filter(item => item.quantity <= 10 && item.quantity > 0).length}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Out of Stock:</span>
+              <span class="summary-value">${items.filter(item => item.quantity === 0).length}</span>
+            </div>
+          </div>
+        </div>
+      `;
     }
-
-    if (!Array.isArray(csvData) || csvData.length === 0) {
-      alert('No data to export');
-      return;
-    }
-
-    // Create CSV headers based on the first object's keys
-    const headers = Object.keys(csvData[0]);
-    const csvContent = [
-      headers.join(','),
-      ...csvData.map(row => 
-        headers.map(header => {
-          let value = row[header] || '';
-          // Handle nested objects or arrays
-          if (typeof value === 'object' && value !== null) {
-            value = JSON.stringify(value).replace(/,/g, ';');
-          }
-          // Escape commas and quotes in CSV
-          return `"${String(value).replace(/"/g, '""')}"`;
-        }).join(',')
-      )
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${csvFilename}_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${selectedReport === 'issued' ? 'Issued Items Report' : 'Inventory Report'}</title>
+          <style>
+            @media print {
+              @page {
+                margin: 1cm;
+              }
+              body {
+                margin: 0;
+                padding: 20px;
+              }
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              color: #333;
+              line-height: 1.4;
+            }
+            
+            .header {
+              display: flex;
+              align-items: flex-start;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #333;
+              padding-bottom: 15px;
+            }
+            
+            .logo-section {
+              flex-shrink: 0;
+              margin-right: 20px;
+            }
+            
+            .logo-section img {
+              width: 80px;
+              height: 80px;
+              object-fit: contain;
+            }
+            
+            .company-info {
+              flex-grow: 1;
+            }
+            
+            .company-info h1 {
+              margin: 0 0 5px 0;
+              font-size: 18px;
+              font-weight: bold;
+              color: #1a1a1a;
+            }
+            
+            .company-info p {
+              margin: 3px 0;
+              font-size: 11px;
+              color: #555;
+            }
+            
+            .document-title {
+              text-align: center;
+              margin: 20px 0;
+            }
+            
+            .document-title h2 {
+              margin: 0;
+              font-size: 20px;
+              font-weight: bold;
+              color: #1a1a1a;
+              text-transform: uppercase;
+            }
+            
+            .report-info {
+              background-color: #f5f5f5;
+              padding: 15px;
+              margin-bottom: 20px;
+              border-radius: 5px;
+            }
+            
+            .report-info-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 10px;
+            }
+            
+            .info-item {
+              display: flex;
+              margin-bottom: 5px;
+            }
+            
+            .info-label {
+              font-weight: bold;
+              margin-right: 10px;
+              min-width: 120px;
+            }
+            
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+              font-size: 11px;
+            }
+            
+            thead {
+              background-color: #475569;
+              color: white;
+            }
+            
+            th, td {
+              padding: 10px;
+              text-align: left;
+              border: 1px solid #ddd;
+            }
+            
+            th {
+              font-weight: bold;
+              font-size: 10px;
+              text-transform: uppercase;
+            }
+            
+            tbody tr:nth-child(even) {
+              background-color: #f9fafb;
+            }
+            
+            tbody tr:hover {
+              background-color: #f1f5f9;
+            }
+            
+            .text-right {
+              text-align: right;
+            }
+            
+            .text-center {
+              text-align: center;
+            }
+            
+            .badge {
+              display: inline-block;
+              padding: 3px 8px;
+              border-radius: 12px;
+              font-size: 10px;
+              font-weight: 600;
+            }
+            
+            .badge-pending {
+              background-color: #fef3c7;
+              color: #92400e;
+            }
+            
+            .badge-approved {
+              background-color: #d1fae5;
+              color: #065f46;
+            }
+            
+            .badge-rejected {
+              background-color: #fee2e2;
+              color: #991b1b;
+            }
+            
+            .badge-in {
+              background-color: #d1fae5;
+              color: #065f46;
+            }
+            
+            .badge-low {
+              background-color: #fef3c7;
+              color: #92400e;
+            }
+            
+            .badge-out {
+              background-color: #fee2e2;
+              color: #991b1b;
+            }
+            
+            .summary {
+              margin-top: 30px;
+              padding: 15px;
+              background-color: #f0f9ff;
+              border-left: 4px solid #3b82f6;
+            }
+            
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 10px;
+            }
+            
+            .summary-item {
+              display: flex;
+              flex-direction: column;
+              padding: 5px 0;
+            }
+            
+            .summary-label {
+              font-weight: bold;
+              font-size: 11px;
+              color: #555;
+            }
+            
+            .summary-value {
+              font-weight: bold;
+              font-size: 16px;
+              color: #3b82f6;
+              margin-top: 3px;
+            }
+            
+            .footer {
+              margin-top: 30px;
+              padding-top: 15px;
+              border-top: 1px solid #ddd;
+              text-align: center;
+              font-size: 10px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo-section">
+              <img src="/cgcla.jpg" alt="CGCLA Logo" onerror="this.style.display='none'" />
+            </div>
+            <div class="company-info">
+              <h1>CGCLA INVENTORY MANAGEMENT</h1>
+              <p>146 Bububu Road, 70403 Urban West, Zanzibar, Maruhubi S.L.P 759</p>
+              <p>Email: info@cgcla.go.tz | Tel. No: +255-24-2238123 | Fax: +255-24-2238124</p>
+            </div>
+          </div>
+          
+          <div class="document-title">
+            <h2>${selectedReport === 'issued' ? 'Issued Items Report' : 'Inventory Report'}</h2>
+          </div>
+          
+          <div class="report-info">
+            <div class="report-info-grid">
+              <div class="info-item">
+                <span class="info-label">Report Type:</span>
+                <span>${selectedReport === 'issued' ? 'Issued Items' : 'Inventory'}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Period:</span>
+                <span>${monthName} ${selectedYear}</span>
+              </div>
+              ${selectedReport === 'issued' ? `
+              <div class="info-item">
+                <span class="info-label">Department:</span>
+                <span>${departmentName}</span>
+              </div>
+              ` : ''}
+              ${selectedUnit !== 'all' ? `
+              <div class="info-item">
+                <span class="info-label">Unit:</span>
+                <span>${selectedUnit}</span>
+              </div>
+              ` : ''}
+              <div class="info-item">
+                <span class="info-label">Generated:</span>
+                <span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</span>
+              </div>
+            </div>
+          </div>
+          
+          ${reportContent}
+          
+          <div class="footer">
+            <p>Generated on: ${new Date().toLocaleString()}</p>
+            <p>Generated by: CGCLA Warehouse Management System</p>
+          </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   // Get current report data with filtering applied
@@ -740,14 +1102,14 @@ const Reports = () => {
             </button>
             
             <button
-              onClick={() => exportToCSV(getCurrentReportData(), selectedReport)}
+              onClick={printReport}
               disabled={!getCurrentReportData()}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
             >
               <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
               </svg>
-              Export CSV
+              Print Report
             </button>
           </div>
         </div>

@@ -198,45 +198,359 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
     setCurrentPage(1); // Reset to first page when filters change
   }, [transactions, selectedMonth, selectedYear]);
 
-  // Download transactions as CSV
-  const downloadTransactionsCSV = () => {
+  // Print transactions
+  const printTransactions = () => {
     if (filteredTransactions.length === 0) {
-      alert('No transactions to download');
+      alert('No transactions to print');
       return;
     }
 
-    // CSV headers
-    const headers = ['Date', 'Transaction Type', 'Quantity', 'Unit Price (TSh)', 'Supplier', 'Total Price (TSh)'];
+    // Create print window content
+    const printWindow = window.open('', '_blank');
+    const monthName = selectedMonth === 'all' ? 'All Months' : new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' });
     
-    // CSV rows
-    const rows = filteredTransactions.map(t => [
-      new Date(t.date).toLocaleDateString(),
-      t.transaction_type || 'N/A',
-      `${t.quantity > 0 ? '+' : ''}${t.quantity}`,
-      t.unit_price !== undefined && t.unit_price !== null ? Number(t.unit_price).toFixed(2) : 'N/A',
-      t.supplier_name || 'N/A',
-      t.unit_price !== undefined && t.unit_price !== null ? (Math.abs(Number(t.quantity) || 0) * Number(t.unit_price)).toFixed(2) : 'N/A'
-    ]);
-
-    // Combine headers and rows
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Transaction History - ${selectedItem.name}</title>
+          <style>
+            @media print {
+              @page {
+                margin: 1cm;
+              }
+              body {
+                margin: 0;
+                padding: 20px;
+              }
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              color: #333;
+              line-height: 1.4;
+            }
+            
+            .header {
+              display: flex;
+              align-items: flex-start;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #333;
+              padding-bottom: 15px;
+            }
+            
+            .logo-section {
+              flex-shrink: 0;
+              margin-right: 20px;
+            }
+            
+            .logo-section img {
+              width: 80px;
+              height: 80px;
+              object-fit: contain;
+            }
+            
+            .company-info {
+              flex-grow: 1;
+            }
+            
+            .company-info h1 {
+              margin: 0 0 5px 0;
+              font-size: 18px;
+              font-weight: bold;
+              color: #1a1a1a;
+            }
+            
+            .company-info p {
+              margin: 3px 0;
+              font-size: 11px;
+              color: #555;
+            }
+            
+            .document-title {
+              text-align: center;
+              margin: 20px 0;
+            }
+            
+            .document-title h2 {
+              margin: 0;
+              font-size: 20px;
+              font-weight: bold;
+              color: #1a1a1a;
+            }
+            
+            .item-info {
+              background-color: #f5f5f5;
+              padding: 15px;
+              margin-bottom: 20px;
+              border-radius: 5px;
+            }
+            
+            .item-info-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 10px;
+            }
+            
+            .info-item {
+              display: flex;
+              margin-bottom: 5px;
+            }
+            
+            .info-label {
+              font-weight: bold;
+              margin-right: 10px;
+              min-width: 120px;
+            }
+            
+            .filter-info {
+              text-align: center;
+              margin-bottom: 20px;
+              font-size: 12px;
+              color: #666;
+            }
+            
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+              font-size: 11px;
+            }
+            
+            thead {
+              background-color: #475569;
+              color: white;
+            }
+            
+            th, td {
+              padding: 10px;
+              text-align: left;
+              border: 1px solid #ddd;
+            }
+            
+            th {
+              font-weight: bold;
+              font-size: 10px;
+              text-transform: uppercase;
+            }
+            
+            tbody tr:nth-child(even) {
+              background-color: #f9fafb;
+            }
+            
+            tbody tr:hover {
+              background-color: #f1f5f9;
+            }
+            
+            .positive {
+              color: #059669;
+              font-weight: 600;
+            }
+            
+            .negative {
+              color: #dc2626;
+              font-weight: 600;
+            }
+            
+            .badge {
+              display: inline-block;
+              padding: 3px 8px;
+              border-radius: 12px;
+              font-size: 10px;
+              font-weight: 600;
+            }
+            
+            .badge-received {
+              background-color: #d1fae5;
+              color: #065f46;
+            }
+            
+            .badge-issued {
+              background-color: #fee2e2;
+              color: #991b1b;
+            }
+            
+            .badge-adjust {
+              background-color: #fef3c7;
+              color: #92400e;
+            }
+            
+            .badge-supplier {
+              background-color: #dbeafe;
+              color: #1e40af;
+            }
+            
+            .summary {
+              margin-top: 30px;
+              padding: 15px;
+              background-color: #f0f9ff;
+              border-left: 4px solid #3b82f6;
+            }
+            
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 10px;
+            }
+            
+            .summary-item {
+              display: flex;
+              justify-content: space-between;
+              padding: 5px 0;
+            }
+            
+            .summary-label {
+              font-weight: bold;
+            }
+            
+            .summary-value {
+              font-weight: bold;
+              color: #3b82f6;
+            }
+            
+            .footer {
+              margin-top: 30px;
+              padding-top: 15px;
+              border-top: 1px solid #ddd;
+              text-align: center;
+              font-size: 10px;
+              color: #666;
+            }
+            
+            .text-right {
+              text-align: right;
+            }
+            
+            .text-center {
+              text-align: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo-section">
+              <img src="/cgcla.jpg" alt="CGCLA Logo" onerror="this.style.display='none'" />
+            </div>
+            <div class="company-info">
+              <h1>CGCLA INVENTORY MANAGEMENT</h1>
+              <p>146 Bububu Road, 70403 Urban West, Zanzibar, Maruhubi S.L.P 759</p>
+              <p>Email: info@cgcla.go.tz | Tel. No: +255-24-2238123 | Fax: +255-24-2238124</p>
+            </div>
+          </div>
+          
+          <div class="document-title">
+            <h2>TRANSACTION HISTORY REPORT</h2>
+          </div>
+          
+          <div class="item-info">
+            <div class="item-info-grid">
+              <div class="info-item">
+                <span class="info-label">Item Name:</span>
+                <span>${selectedItem.name}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Item Code:</span>
+                <span>${selectedItem.item_code}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Unit:</span>
+                <span>${selectedItem.unit || 'N/A'}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Current Stock:</span>
+                <span>${selectedItem.stock || 0} ${selectedItem.unit || ''}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="filter-info">
+            <strong>Period:</strong> ${monthName} ${selectedYear} | 
+            <strong>Total Transactions:</strong> ${filteredTransactions.length} | 
+            <strong>Total Amount:</strong> ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TSh
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Transaction Type</th>
+                <th class="text-center">Quantity</th>
+                <th class="text-right">Unit Price (TSh)</th>
+                <th>Supplier</th>
+                <th class="text-right">Total Price (TSh)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredTransactions.map(t => `
+                <tr>
+                  <td>${new Date(t.date).toLocaleDateString()}</td>
+                  <td>
+                    <span class="badge badge-${t.transaction_type === 'received' ? 'received' : t.transaction_type === 'issued' ? 'issued' : 'adjust'}">
+                      ${t.transaction_type || 'N/A'}
+                    </span>
+                  </td>
+                  <td class="text-center ${t.quantity > 0 ? 'positive' : 'negative'}">
+                    ${t.quantity > 0 ? '+' : ''}${t.quantity} ${selectedItem.unit}
+                  </td>
+                  <td class="text-right">
+                    ${(t.unit_price !== undefined && t.unit_price !== null) 
+                      ? Number(t.unit_price).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                      : 'N/A'
+                    }
+                  </td>
+                  <td>
+                    <span class="badge badge-supplier">
+                      ${t.supplier_name || 'N/A'}
+                    </span>
+                  </td>
+                  <td class="text-right">
+                    ${(t.unit_price !== undefined && t.unit_price !== null)
+                      ? (Math.abs(Number(t.quantity) || 0) * Number(t.unit_price)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                      : 'N/A'
+                    }
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="summary">
+            <div class="summary-grid">
+              <div class="summary-item">
+                <span class="summary-label">Total Transactions:</span>
+                <span class="summary-value">${filteredTransactions.length}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Total Amount:</span>
+                <span class="summary-value">${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TSh</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Period:</span>
+                <span class="summary-value">${monthName} ${selectedYear}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Report Date:</span>
+                <span class="summary-value">${new Date().toLocaleDateString()}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <p>Generated on: ${new Date().toLocaleString()}</p>
+            <p>Generated by: CGCLA Warehouse Management System</p>
+          </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
     
-    const filename = `transactions_${selectedItem.item_code}_${selectedMonth === 'all' ? 'all' : new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })}_${selectedYear}.csv`;
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   // Load transactions when modal opens or when key changes
@@ -333,17 +647,17 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                 })}
               </select>
 
-              {/* Download Button */}
+              {/* Print Button */}
               <button
-                onClick={downloadTransactionsCSV}
+                onClick={printTransactions}
                 disabled={filteredTransactions.length === 0}
-                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
-                title="Download as CSV"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                title="Print Report"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
-                <span>Download</span>
+                <span>Print</span>
               </button>
 
               {/* Refresh Button */}

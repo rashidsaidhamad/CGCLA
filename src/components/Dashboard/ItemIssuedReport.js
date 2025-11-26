@@ -87,7 +87,7 @@ const ItemIssuedReport = () => {
       setCategories(categoriesList);
 
       // Process and combine the data with damage reports and stock transactions
-      const processedData = processItemData(requestsData, inventoryData, damageReportsData, stockTransactionsData);
+      const processedData = processItemData(requestsData, inventoryData, damageReportsData, stockTransactionsData, categoriesList);
       setItemDetails(processedData);
       setReportData({ 
         requests: requestsData, 
@@ -105,9 +105,19 @@ const ItemIssuedReport = () => {
   };
 
   // Process and combine request and inventory data
-  const processItemData = (requestsData, inventoryData, damageReportsData = [], stockTransactionsData = []) => {
+  const processItemData = (requestsData, inventoryData, damageReportsData = [], stockTransactionsData = [], categoriesList = []) => {
     const requests = requestsData.requests || requestsData || [];
     const inventory = inventoryData.items || inventoryData || [];
+
+    // Create a map of categories by ID for quick lookup
+    const categoriesMap = {};
+    categoriesList.forEach(cat => {
+      categoriesMap[cat.id] = cat.name;
+    });
+    
+    console.log('=== Categories Map ===', categoriesMap);
+    console.log('=== Sample Raw Inventory Items ===', inventory.slice(0, 3));
+    console.log('=== DETAILED First Item ===', JSON.stringify(inventory[0], null, 2));
 
     // Create a map of damage reports by item ID for quick lookup
     const damageReportsMap = {};
@@ -139,13 +149,66 @@ const ItemIssuedReport = () => {
     // Initialize stock data for all inventory items
     inventory.forEach(item => {
       if (!itemStockMap[item.id]) {
+        // Extract categoryId and categoryName - handle all possible formats
+        let categoryId = null;
+        let categoryName = 'Uncategorized';
+        
+        // Log the raw item structure for first 3 items
+        if (Object.keys(itemStockMap).length < 3) {
+          console.log(`📦 Raw item structure for "${item.name}":`, {
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            category_id: item.category_id,
+            categoryType: typeof item.category,
+            hasCategory: !!item.category,
+            hasCategoryId: !!item.category_id,
+            allKeys: Object.keys(item)
+          });
+        }
+        
+        if (item.category) {
+          if (typeof item.category === 'object' && item.category !== null) {
+            // Category is an object with id and name
+            categoryId = item.category.id || null;
+            categoryName = item.category.name || 'Uncategorized';
+          } else if (typeof item.category === 'number') {
+            // Category is just an ID number
+            categoryId = item.category;
+            categoryName = categoriesMap[categoryId] || 'Uncategorized';
+          } else if (typeof item.category === 'string') {
+            // Category is a string (could be name or numeric string)
+            const parsedId = parseInt(item.category);
+            if (!isNaN(parsedId)) {
+              categoryId = parsedId;
+              categoryName = categoriesMap[categoryId] || 'Uncategorized';
+            } else {
+              categoryName = item.category;
+            }
+          }
+        }
+        
+        // Also check for category_id field directly on item
+        if (categoryId === null && item.category_id) {
+          categoryId = typeof item.category_id === 'number' ? item.category_id : parseInt(item.category_id);
+          categoryName = categoriesMap[categoryId] || categoryName;
+        }
+        
+        // Last resort: check for categoryId field (camelCase)
+        if (categoryId === null && item.categoryId) {
+          categoryId = typeof item.categoryId === 'number' ? item.categoryId : parseInt(item.categoryId);
+          categoryName = categoriesMap[categoryId] || categoryName;
+        }
+        
+        console.log(`✓ [processItemData] Item "${item.name}": categoryId=${categoryId}, categoryName="${categoryName}"`);
+        
         itemStockMap[item.id] = {
           id: item.id,
           itemCode: item.item_code || 'N/A',
           itemName: item.name,
           unit: item.unit || 'pcs',
-          category: item.category?.name || item.category || 'Uncategorized',
-          categoryId: item.category?.id || null,
+          category: categoryName,
+          categoryId: categoryId,
           lastMonthStock: 0,
           lastMonthDamaged: 0,
           receivedThisMonth: 0,
@@ -252,13 +315,20 @@ const ItemIssuedReport = () => {
     const damageReports = reportData.damageReports || [];
     const stockTransactions = reportData.stockTransactions || [];
 
+    // Create a map of categories by ID for quick lookup
+    const categoriesMap = {};
+    categories.forEach(cat => {
+      categoriesMap[cat.id] = cat.name;
+    });
+
     console.log('recalculateDataForMonth - Sample inventory items:', inventory.slice(0, 2).map(item => ({
       id: item.id,
       name: item.name,
       category: item.category,
       categoryStructure: typeof item.category,
       categoryId: item.category?.id,
-      categoryIdType: typeof item.category?.id
+      categoryIdType: typeof item.category?.id,
+      allKeys: Object.keys(item)
     })));
 
     const damageReportsMap = {};
@@ -276,20 +346,44 @@ const ItemIssuedReport = () => {
     // Initialize stock data for all inventory items
     inventory.forEach(item => {
       if (!itemStockMap[item.id]) {
-        // Extract categoryId - handle both object and primitive category
+        // Extract categoryId and categoryName - handle all possible formats
         let categoryId = null;
         let categoryName = 'Uncategorized';
         
         if (item.category) {
-          if (typeof item.category === 'object') {
+          if (typeof item.category === 'object' && item.category !== null) {
+            // Category is an object with id and name
             categoryId = item.category.id || null;
             categoryName = item.category.name || 'Uncategorized';
-          } else {
-            categoryName = item.category;
+          } else if (typeof item.category === 'number') {
+            // Category is just an ID number
+            categoryId = item.category;
+            categoryName = categoriesMap[categoryId] || 'Uncategorized';
+          } else if (typeof item.category === 'string') {
+            // Category is a string (could be name or numeric string)
+            const parsedId = parseInt(item.category);
+            if (!isNaN(parsedId)) {
+              categoryId = parsedId;
+              categoryName = categoriesMap[categoryId] || 'Uncategorized';
+            } else {
+              categoryName = item.category;
+            }
           }
         }
         
-        console.log(`Item ${item.name}: categoryId=${categoryId}, categoryName=${categoryName}`);
+        // Also check for category_id field directly on item
+        if (categoryId === null && item.category_id) {
+          categoryId = typeof item.category_id === 'number' ? item.category_id : parseInt(item.category_id);
+          categoryName = categoriesMap[categoryId] || categoryName;
+        }
+        
+        // Last resort: check for categoryId field (camelCase)
+        if (categoryId === null && item.categoryId) {
+          categoryId = typeof item.categoryId === 'number' ? item.categoryId : parseInt(item.categoryId);
+          categoryName = categoriesMap[categoryId] || categoryName;
+        }
+        
+        console.log(`✓ [recalculateDataForMonth] Item "${item.name}": categoryId=${categoryId}, categoryName="${categoryName}"`);
         
         itemStockMap[item.id] = {
           id: item.id,
@@ -419,7 +513,7 @@ const ItemIssuedReport = () => {
     }
 
     return Object.values(itemStockMap);
-  }, [reportData, itemDetails]);
+  }, [reportData, itemDetails, categories]);
 
   // Filter and recalculate data by month, year, and category using useMemo
   const filteredData = useMemo(() => {
@@ -449,11 +543,12 @@ const ItemIssuedReport = () => {
     // Filter by category
     if (selectedCategory !== '') {
       const categoryId = parseInt(selectedCategory);
-      console.log('Filtering by categoryId:', categoryId, 'type:', typeof categoryId);
+      console.log('=== CATEGORY FILTER ACTIVE ===');
+      console.log('Selected category ID from dropdown:', categoryId);
       console.log('Before category filter:', filtered.length, 'items');
       
-      // Debug: show first 3 items with their categories
-      console.log('First 3 items:', filtered.slice(0, 3).map(item => ({
+      // Debug: show ALL items with their categories
+      console.log('All items before filter:', filtered.map(item => ({
         id: item.id,
         name: item.itemName,
         categoryId: item.categoryId,
@@ -472,6 +567,7 @@ const ItemIssuedReport = () => {
       filtered = filtered.filter(item => {
         const itemCategoryId = item.categoryId;
         const matches = itemCategoryId !== null && itemCategoryId !== undefined && itemCategoryId === categoryId;
+        console.log(`Item "${item.itemName}": categoryId=${itemCategoryId}, matches=${matches}, looking for=${categoryId}`);
         return matches;
       });
       
@@ -483,7 +579,10 @@ const ItemIssuedReport = () => {
           categoryId: item.categoryId
         })));
       } else {
-        console.log('No items matched the category filter!');
+        console.log('❌ NO ITEMS MATCHED THE CATEGORY FILTER!');
+        console.log('This means either:');
+        console.log('1. No items have categoryId =', categoryId);
+        console.log('2. Category IDs are not being extracted correctly');
       }
     }
 
@@ -510,51 +609,417 @@ const ItemIssuedReport = () => {
     setCurrentPage(1);
   };
 
-  // Export to CSV
-  const exportToCSV = () => {
+  // Print Report
+  const printReport = () => {
     if (filteredData.length === 0) {
-      alert('No data to export');
+      alert('No data to print');
       return;
     }
 
-    const headers = [
-      'Item Code',
-      'Item Name',
-      'Unit',
-      'Last Month Stock',
-      'Last Month Damaged',
-      'Received This Month',
-      'Issued This Month',
-      'Current Stock',
-      'Current Month Damaged',
-      'Category'
-    ];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const periodText = selectedMonth !== '' 
+      ? `${monthNames[parseInt(selectedMonth)]} ${selectedYear}`
+      : `Year ${selectedYear}`;
+    
+    const categoryText = selectedCategory !== '' 
+      ? categories.find(c => c.id === parseInt(selectedCategory))?.name || 'All Categories'
+      : 'All Categories';
 
-    const csvContent = [
-      headers.join(','),
-      ...filteredData.map(item => [
-        `"${item.itemCode}"`,
-        `"${item.itemName}"`,
-        `"${item.unit}"`,
-        item.lastMonthStock,
-        item.lastMonthDamaged,
-        item.receivedThisMonth,
-        item.issuedThisMonth,
-        item.currentStock,
-        item.currentDamaged,
-        `"${item.category}"`
-      ].join(','))
-    ].join('\n');
+    // Calculate summary statistics
+    const totalLastMonthStock = filteredData.reduce((sum, item) => sum + item.lastMonthStock, 0);
+    const totalLastMonthDamaged = filteredData.reduce((sum, item) => sum + item.lastMonthDamaged, 0);
+    const totalReceived = filteredData.reduce((sum, item) => sum + item.receivedThisMonth, 0);
+    const totalIssued = filteredData.reduce((sum, item) => sum + item.issuedThisMonth, 0);
+    const totalCurrentStock = filteredData.reduce((sum, item) => sum + item.currentStock, 0);
+    const totalCurrentDamaged = filteredData.reduce((sum, item) => sum + item.currentDamaged, 0);
+    const totalValue = filteredData.reduce((sum, item) => sum + (item.currentStock * item.unitPrice), 0);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `monthly_stock_report_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    const printWindow = window.open('', '_blank');
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Monthly Stock Movement Report - ${periodText}</title>
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background: white;
+          }
+          
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            border-bottom: 3px solid #4F46E5;
+            margin-bottom: 30px;
+          }
+          
+          .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+          }
+          
+          .logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+          }
+          
+          .company-info h1 {
+            color: #1F2937;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+          }
+          
+          .company-info p {
+            color: #6B7280;
+            font-size: 14px;
+          }
+          
+          .report-title {
+            text-align: center;
+            margin: 30px 0;
+          }
+          
+          .report-title h2 {
+            color: #1F2937;
+            font-size: 22px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          
+          .report-info {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #F9FAFB;
+            border-radius: 8px;
+          }
+          
+          .info-item {
+            padding: 10px;
+          }
+          
+          .info-label {
+            font-size: 12px;
+            color: #6B7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+          }
+          
+          .info-value {
+            font-size: 14px;
+            color: #1F2937;
+            font-weight: 500;
+          }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            font-size: 11px;
+          }
+          
+          thead {
+            background: #4F46E5;
+            color: white;
+          }
+          
+          th {
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+          }
+          
+          th.center {
+            text-align: center;
+          }
+          
+          tbody tr {
+            border-bottom: 1px solid #E5E7EB;
+          }
+          
+          tbody tr:nth-child(even) {
+            background: #F9FAFB;
+          }
+          
+          tbody tr:hover {
+            background: #F3F4F6;
+          }
+          
+          td {
+            padding: 10px 8px;
+            color: #374151;
+          }
+          
+          td.center {
+            text-align: center;
+          }
+          
+          .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+          }
+          
+          .badge-code {
+            background: #EEF2FF;
+            color: #4F46E5;
+          }
+          
+          .badge-unit {
+            background: #F3F4F6;
+            color: #374151;
+          }
+          
+          .badge-orange {
+            background: #FEF3C7;
+            color: #D97706;
+          }
+          
+          .badge-red {
+            background: #FEE2E2;
+            color: #DC2626;
+          }
+          
+          .badge-green {
+            background: #D1FAE5;
+            color: #059669;
+          }
+          
+          .badge-blue {
+            background: #DBEAFE;
+            color: #2563EB;
+          }
+          
+          .badge-yellow {
+            background: #FEF3C7;
+            color: #D97706;
+          }
+          
+          .summary-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #F9FAFB;
+            border-radius: 8px;
+            border: 2px solid #E5E7EB;
+          }
+          
+          .summary-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1F2937;
+            margin-bottom: 15px;
+          }
+          
+          .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+          }
+          
+          .summary-item {
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #E5E7EB;
+          }
+          
+          .summary-label {
+            font-size: 11px;
+            color: #6B7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+          }
+          
+          .summary-value {
+            font-size: 20px;
+            color: #1F2937;
+            font-weight: 700;
+          }
+          
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #E5E7EB;
+            text-align: center;
+            color: #6B7280;
+            font-size: 12px;
+          }
+          
+          @media print {
+            body {
+              padding: 0;
+            }
+            
+            .header {
+              page-break-after: avoid;
+            }
+            
+            table {
+              page-break-inside: auto;
+            }
+            
+            tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+            
+            thead {
+              display: table-header-group;
+            }
+            
+            .summary-section {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo-section">
+            <img src="/cgcla.jpg" alt="Company Logo" class="logo" onerror="this.style.display='none'">
+            <div class="company-info">
+              <h1>CGCLA Warehouse</h1>
+              <p>Inventory Management System</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="report-title">
+          <h2>Monthly Stock Movement Report</h2>
+        </div>
+
+        <div class="report-info">
+          <div class="info-item">
+            <div class="info-label">Report Period</div>
+            <div class="info-value">${periodText}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Category Filter</div>
+            <div class="info-value">${categoryText}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Total Items</div>
+            <div class="info-value">${filteredData.length.toLocaleString()}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Generated</div>
+            <div class="info-value">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Item Code</th>
+              <th>Item Name</th>
+              <th>Category</th>
+              <th>Unit</th>
+              <th class="center">Last Month<br/>Stock</th>
+              <th class="center">Last Month<br/>Damaged</th>
+              <th class="center">Received<br/>This Month</th>
+              <th class="center">Issued<br/>This Month</th>
+              <th class="center">Current<br/>Stock</th>
+              <th class="center">Current<br/>Damaged</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredData.map(item => `
+              <tr>
+                <td><span class="badge badge-code">${item.itemCode}</span></td>
+                <td><strong>${item.itemName}</strong></td>
+                <td>${item.category}</td>
+                <td><span class="badge badge-unit">${item.unit}</span></td>
+                <td class="center"><span class="badge badge-orange">${item.lastMonthStock.toLocaleString()}</span></td>
+                <td class="center"><span class="badge badge-red">${item.lastMonthDamaged.toLocaleString()}</span></td>
+                <td class="center"><span class="badge badge-green">+${item.receivedThisMonth.toLocaleString()}</span></td>
+                <td class="center"><span class="badge badge-red">-${item.issuedThisMonth.toLocaleString()}</span></td>
+                <td class="center"><span class="badge ${
+                  item.currentStock > 10 ? 'badge-blue' : item.currentStock > 0 ? 'badge-yellow' : 'badge-red'
+                }">${item.currentStock.toLocaleString()}</span></td>
+                <td class="center"><span class="badge badge-red">${item.currentDamaged.toLocaleString()}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="summary-section">
+          <div class="summary-title">Summary Statistics</div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">Total Last Month Stock</div>
+              <div class="summary-value">${totalLastMonthStock.toLocaleString()}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Received</div>
+              <div class="summary-value" style="color: #059669;">+${totalReceived.toLocaleString()}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Issued</div>
+              <div class="summary-value" style="color: #DC2626;">-${totalIssued.toLocaleString()}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Current Stock</div>
+              <div class="summary-value" style="color: #2563EB;">${totalCurrentStock.toLocaleString()}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Last Month Damaged</div>
+              <div class="summary-value" style="color: #DC2626;">${totalLastMonthDamaged.toLocaleString()}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Current Damaged</div>
+              <div class="summary-value" style="color: #DC2626;">${totalCurrentDamaged.toLocaleString()}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Items Count</div>
+              <div class="summary-value">${filteredData.length.toLocaleString()}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Stock Value</div>
+              <div class="summary-value" style="color: #059669;">TZS ${totalValue.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>This report was generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+          <p>CGCLA Warehouse Management System © ${new Date().getFullYear()}</p>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   // Initial load
@@ -689,14 +1154,14 @@ const ItemIssuedReport = () => {
             </button>
             
             <button
-              onClick={exportToCSV}
+              onClick={printReport}
               disabled={totalItems === 0}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
             >
               <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
               </svg>
-              Export CSV
+              Print Report
             </button>
 
             {(selectedMonth !== '' || selectedCategory !== '' || selectedYear !== new Date().getFullYear()) && (

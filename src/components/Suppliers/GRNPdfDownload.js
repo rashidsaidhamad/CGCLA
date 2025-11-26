@@ -42,7 +42,7 @@ const GRNPdfDownload = ({ grn, onDownload }) => {
     let contactY = 14;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('CGCLA WAREHOUSE MANAGEMENT', contactX, contactY);
+    doc.text('CGCLA INVENTORY MANAGEMENT', contactX, contactY);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     contactY += 6;
@@ -71,47 +71,73 @@ const GRNPdfDownload = ({ grn, onDownload }) => {
     // GRN Details Section
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text('GRN Details', 20, 60);
+    //doc.text('GRN Details', 20, 60);
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     
     // Left column details
     const leftColumnY = 70;
-    doc.text('PO Number:', 20, leftColumnY);
-    doc.text(grn.po_number || 'N/A', 55, leftColumnY);
+    const leftLabelX = 20;
+    const leftValueX = 55;
+    const maxLeftWidth = 45; // Maximum width for left column values
     
-    doc.text('Delivery Number:', 20, leftColumnY + 8);
-    doc.text(grn.delivery_number || 'N/A', 55, leftColumnY + 8);
+    doc.text('PO Number:', leftLabelX, leftColumnY);
+    const poNumber = grn.po_number || 'N/A';
+    doc.text(poNumber.length > 30 ? poNumber.substring(0, 27) + '...' : poNumber, leftValueX, leftColumnY);
     
-    doc.text('Sender Details:', 20, leftColumnY + 16);
-    doc.text(grn.sender_details || 'N/A', 55, leftColumnY + 16);
+    doc.text('Delivery Number:', leftLabelX, leftColumnY + 8);
+    const deliveryNumber = grn.delivery_number || 'N/A';
+    doc.text(deliveryNumber.length > 30 ? deliveryNumber.substring(0, 27) + '...' : deliveryNumber, leftValueX, leftColumnY + 8);
     
-    doc.text('Transport:', 20, leftColumnY + 24);
-    doc.text(grn.transport || 'N/A', 55, leftColumnY + 24);
+    doc.text('Sender Details:', leftLabelX, leftColumnY + 16);
+    const senderDetails = grn.sender_details || 'N/A';
+    // Use splitTextToSize to wrap long sender details
+    const senderLines = doc.splitTextToSize(senderDetails, maxLeftWidth);
+    doc.text(senderLines[0], leftValueX, leftColumnY + 16);
+    if (senderLines.length > 1) {
+      doc.text(senderLines[1], leftValueX, leftColumnY + 21);
+    }
     
-    doc.text('Registration Plate:', 20, leftColumnY + 32);
-    doc.text(grn.registration_plate || 'N/A', 55, leftColumnY + 32);
+    const transportY = senderLines.length > 1 ? leftColumnY + 29 : leftColumnY + 24;
+    doc.text('Transport:', leftLabelX, transportY);
+    const transport = grn.transport || 'N/A';
+    doc.text(transport.length > 30 ? transport.substring(0, 27) + '...' : transport, leftValueX, transportY);
     
-    // Right column details
+    const regPlateY = transportY + 8;
+    doc.text('Registration Plate:', leftLabelX, regPlateY);
+    doc.text(grn.registration_plate || 'N/A', leftValueX, regPlateY);
+    
+    // Right column details - positioned to avoid left column overlap
     const rightColumnY = 70;
-    doc.text('Date Received:', 110, rightColumnY);
-    doc.text(new Date(grn.date_received).toLocaleDateString(), 145, rightColumnY);
+    const rightLabelX = 115;
+    const rightValueX = 155;
     
-    doc.text('Time Received:', 110, rightColumnY + 8);
-    doc.text(grn.time_received || 'N/A', 145, rightColumnY + 8);
+    doc.text('Date Received:', rightLabelX, rightColumnY);
+    doc.text(new Date(grn.date_received).toLocaleDateString(), rightValueX, rightColumnY);
     
-    doc.text('Person Delivering:', 110, rightColumnY + 16);
-    doc.text(grn.person_delivering || 'N/A', 145, rightColumnY + 16);
+    doc.text('Time Received:', rightLabelX, rightColumnY + 8);
+    doc.text(grn.time_received || 'N/A', rightValueX, rightColumnY + 8);
     
-    doc.text('Storekeeper:', 110, rightColumnY + 24);
-    doc.text(grn.storekeeper || 'N/A', 145, rightColumnY + 24);
+    doc.text('Person Delivering:', rightLabelX, rightColumnY + 16);
+    const personDelivering = grn.person_delivering || 'N/A';
+    // Wrap person delivering if too long
+    const personLines = doc.splitTextToSize(personDelivering, 35);
+    doc.text(personLines[0], rightValueX, rightColumnY + 16);
+    if (personLines.length > 1) {
+      doc.text(personLines[1], rightValueX, rightColumnY + 21);
+    }
     
-    doc.text('Status:', 110, rightColumnY + 32);
-    doc.text(grn.status || 'Pending', 145, rightColumnY + 32);
+    const storekeeperY = personLines.length > 1 ? rightColumnY + 29 : rightColumnY + 24;
+    doc.text('Storekeeper:', rightLabelX, storekeeperY);
+    doc.text(grn.storekeeper || 'N/A', rightValueX, storekeeperY);
     
-  // Items Table
-  const tableStartY = 130;
+    const statusY = storekeeperY + 8;
+    doc.text('Status:', rightLabelX, statusY);
+    doc.text(grn.status || 'Pending', rightValueX, statusY);
+    
+  // Items Table - start after the details section with proper spacing
+  const tableStartY = Math.max(regPlateY, statusY) + 15;
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text('Items Received', 20, tableStartY);

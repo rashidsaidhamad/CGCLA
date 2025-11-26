@@ -29,6 +29,10 @@ const SuppliersDashboard = () => {
   // Supplier search state
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
 
+  // Item search state for Add to Stock form
+  const [itemSearchResults, setItemSearchResults] = useState({});
+  const [itemSearchLoading, setItemSearchLoading] = useState({});
+
   // GRN Filter states
   const [filterType, setFilterType] = useState('all'); // 'all', 'week', 'month', 'year'
   const [selectedWeek, setSelectedWeek] = useState(getWeekNumber(new Date()));
@@ -262,9 +266,13 @@ const SuppliersDashboard = () => {
   };
 
   // Check if item exists by item code
-  const checkItemExists = async (itemCode) => {
+  const searchItems = async (searchQuery) => {
     try {
-      const query = encodeURIComponent((itemCode || '').trim());
+      if (!searchQuery || searchQuery.trim().length < 2) {
+        return [];
+      }
+
+      const query = encodeURIComponent(searchQuery.trim());
       const resp = await fetch(`${API_BASE}/inventory/items/?search=${query}`, {
         headers: getHeaders(),
       });
@@ -273,25 +281,78 @@ const SuppliersDashboard = () => {
         const data = await resp.json();
         const items = data.results || data;
 
-        // Match by exact item_code OR by name (case-insensitive, exact or contains)
-        const q = (itemCode || '').trim().toLowerCase();
-        const found = items.find(it => {
+        // Filter items by item_code OR name (case-insensitive)
+        const q = searchQuery.trim().toLowerCase();
+        const filtered = items.filter(it => {
           const code = (it.item_code || '').toLowerCase();
           const name = (it.name || '').toLowerCase();
           return (
-            (code && code === q) ||
-            (name && name === q) ||
-            (name && q !== '' && name.includes(q))
+            (code && code.includes(q)) ||
+            (name && name.includes(q))
           );
         });
 
-        return found || null;
+        return filtered.slice(0, 10); // Limit to 10 results
       }
-      return null;
+      return [];
     } catch (error) {
-      console.error('Error checking item existence:', error);
-      return null;
+      console.error('Error searching items:', error);
+      return [];
     }
+  };
+
+  // Handle real-time item search with debouncing
+  const handleItemSearch = async (index, searchQuery) => {
+    // Update the search input immediately
+    updateFormItem(index, 'existingItemCode', searchQuery);
+
+    // Clear existing item if search is cleared
+    if (!searchQuery || searchQuery.trim().length === 0) {
+      updateFormItem(index, 'existingItem', null);
+      updateFormItem(index, 'isExistingItem', false);
+      setItemSearchResults(prev => ({ ...prev, [index]: [] }));
+      return;
+    }
+
+    // Show loading state
+    setItemSearchLoading(prev => ({ ...prev, [index]: true }));
+
+    // Debounce the search
+    if (window.itemSearchTimeout && window.itemSearchTimeout[index]) {
+      clearTimeout(window.itemSearchTimeout[index]);
+    }
+
+    if (!window.itemSearchTimeout) {
+      window.itemSearchTimeout = {};
+    }
+
+    window.itemSearchTimeout[index] = setTimeout(async () => {
+      const results = await searchItems(searchQuery);
+      setItemSearchResults(prev => ({ ...prev, [index]: results }));
+      setItemSearchLoading(prev => ({ ...prev, [index]: false }));
+    }, 300); // 300ms debounce
+  };
+
+  // Handle selecting an item from search results
+  const handleSelectItem = (index, item) => {
+    updateFormItem(index, 'existingItemCode', item.item_code || item.name);
+    updateFormItem(index, 'existingItem', item);
+    updateFormItem(index, 'isExistingItem', true);
+
+    // Pre-fill form with existing item data
+    updateFormItem(index, 'category_id', item.category?.id || '');
+    updateFormItem(index, 'location', item.location || 'Warehouse');
+    updateFormItem(index, 'min_stock', item.min_stock || 10);
+    updateFormItem(index, 'max_stock', item.max_stock || 1000);
+
+    // Clear search results
+    setItemSearchResults(prev => ({ ...prev, [index]: [] }));
+  };
+
+  // Legacy function - kept for compatibility
+  const checkItemExists = async (itemCode) => {
+    const results = await searchItems(itemCode);
+    return results.length > 0 ? results[0] : null;
   };
 
   // Open stock form for specific items
@@ -337,35 +398,6 @@ const SuppliersDashboard = () => {
       }))
     });
     setShowStockForm(true);
-  };
-
-  // Handle existing item code input
-  const handleExistingItemCheck = async (index, itemCode) => {
-    if (!itemCode.trim()) {
-      updateFormItem(index, 'existingItemCode', '');
-      updateFormItem(index, 'existingItem', null);
-      updateFormItem(index, 'isExistingItem', false);
-      return;
-    }
-
-    const existingItem = await checkItemExists(itemCode.trim());
-    
-    updateFormItem(index, 'existingItemCode', itemCode);
-    updateFormItem(index, 'existingItem', existingItem);
-    updateFormItem(index, 'isExistingItem', !!existingItem);
-
-    if (existingItem) {
-      // Pre-fill form with existing item data
-      updateFormItem(index, 'category_id', existingItem.category?.id || '');
-      updateFormItem(index, 'location', existingItem.location || 'Warehouse');
-      updateFormItem(index, 'min_stock', existingItem.min_stock || 10);
-      updateFormItem(index, 'max_stock', existingItem.max_stock || 1000);
-      // Intentionally do NOT copy supplier_id or unit_price to the form so the user can
-      // choose the supplier and set the correct unit price for this GRN intake.
-      alert(`Item found: ${existingItem.name}. Stock will be updated instead of creating new item. Please confirm supplier and unit price.`);
-    } else {
-      alert(`Item with code "${itemCode}" not found. A new item will be created.`);
-    }
   };
 
   // Handle form submission for adding to stock
@@ -964,31 +996,83 @@ const SuppliersDashboard = () => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {/* Existing Item Code Check */}
+                              {/* Existing Item Search with Real-time Results */}
                               <div className="md:col-span-3">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Existing Item Code (Optional)
+                                  Search Existing Item (Optional)
                                 </label>
-                                <div className="flex gap-2">
+                                <div className="relative">
                                   <input
                                     type="text"
                                     value={item.existingItemCode || ''}
-                                    onChange={(e) => handleExistingItemCheck(index, e.target.value)}
-                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Enter existing item code to update stock instead of creating new item"
+                                    onChange={(e) => handleItemSearch(index, e.target.value)}
+                                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Type item name or code to search..."
                                   />
-                                  {item.isExistingItem && (
-                                    <span className="flex items-center px-3 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium">
-                                      ✓ Found: {item.existingItem?.name}
-                                    </span>
+                                  {itemSearchLoading[index] && (
+                                    <div className="absolute right-3 top-3">
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                    </div>
+                                  )}
+                                  {item.isExistingItem && item.existingItem && (
+                                    <div className="absolute right-3 top-3">
+                                      <span className="text-green-600 font-bold">✓</span>
+                                    </div>
+                                  )}
+
+                                  {/* Search Results Dropdown */}
+                                  {itemSearchResults[index] && itemSearchResults[index].length > 0 && !item.isExistingItem && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                      {itemSearchResults[index].map((searchItem) => (
+                                        <button
+                                          key={searchItem.id}
+                                          type="button"
+                                          onClick={() => handleSelectItem(index, searchItem)}
+                                          className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                                        >
+                                          <div className="font-medium text-gray-900">{searchItem.name}</div>
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            Code: {searchItem.item_code} | Stock: {searchItem.stock} {searchItem.unit}
+                                            {searchItem.category?.name && ` | ${searchItem.category.name}`}
+                                          </div>
+                                        </button>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {item.isExistingItem 
-                                    ? `Stock will be updated for existing item: ${item.existingItem?.name}` 
-                                    : "Leave empty to create a new item. If you enter an existing item code, the stock will be updated instead."
-                                  }
-                                </p>
+
+                                {item.isExistingItem && item.existingItem ? (
+                                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                    <div className="flex items-start justify-between">
+                                      <div>
+                                        <p className="text-sm font-medium text-green-900">
+                                          ✓ Selected: {item.existingItem.name}
+                                        </p>
+                                        <p className="text-xs text-green-700 mt-1">
+                                          Code: {item.existingItem.item_code} | Current Stock: {item.existingItem.stock} {item.existingItem.unit}
+                                        </p>
+                                        <p className="text-xs text-green-600 mt-1">
+                                          Stock will be updated. Please confirm supplier and unit price.
+                                        </p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          updateFormItem(index, 'existingItemCode', '');
+                                          updateFormItem(index, 'existingItem', null);
+                                          updateFormItem(index, 'isExistingItem', false);
+                                        }}
+                                        className="text-green-600 hover:text-green-800 font-medium text-sm"
+                                      >
+                                        Clear
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    Type to search for existing items by name or code. Leave empty to create a new item.
+                                  </p>
+                                )}
                               </div>
 
                               {/* Category */}
