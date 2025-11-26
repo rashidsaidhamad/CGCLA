@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import ItemBatchDetails from './ItemBatchDetails';
-//import AddStockModal from './AddStockModal';
 import ViewTransactionsModal from './ViewTransactionsModal';
 import DamageReportModal from './DamageReportModal';
 
@@ -9,6 +8,7 @@ const StockBalance = () => {
   const [categories, setCategories] = useState([]);
   const [stockTransactions, setStockTransactions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
@@ -30,7 +30,6 @@ const StockBalance = () => {
   });
 
   // New modals state
-  const [showAddStockModal, setShowAddStockModal] = useState(false);
   const [showViewTransactionsModal, setShowViewTransactionsModal] = useState(false);
   const [showDamageReportModal, setShowDamageReportModal] = useState(false);
 
@@ -182,13 +181,6 @@ const StockBalance = () => {
     setDropdownOpen(dropdownOpen === itemId ? null : itemId);
   };
 
-  // Handle Add Stock action
-  const handleAddStock = (item) => {
-    setSelectedItem(item);
-    setShowAddStockModal(true);
-    setDropdownOpen(null);
-  };
-
   // Handle View Transactions action
   const handleViewTransactions = (item) => {
     setSelectedItem(item);
@@ -235,7 +227,21 @@ const StockBalance = () => {
                            item.item_code.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || 
                              item.category?.id === parseInt(selectedCategory);
-      return matchesSearch && matchesCategory;
+      
+      // Status filtering
+      let matchesStatus = true;
+      if (selectedStatus !== 'all') {
+        const currentStock = item.total_stock || item.stock;
+        if (selectedStatus === 'instock') {
+          matchesStatus = currentStock > item.min_stock;
+        } else if (selectedStatus === 'lowstock') {
+          matchesStatus = currentStock <= item.min_stock && currentStock > 0;
+        } else if (selectedStatus === 'outofstock') {
+          matchesStatus = currentStock <= 0;
+        }
+      }
+      
+      return matchesSearch && matchesCategory && matchesStatus;
     })
     .sort((a, b) => {
       let aValue = a[sortBy];
@@ -451,6 +457,16 @@ const StockBalance = () => {
                 {category.name}
               </option>
             ))}
+          </select>
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Status</option>
+            <option value="instock">In Stock</option>
+            <option value="lowstock">Low Stock</option>
+            <option value="outofstock">Out of Stock</option>
           </select>
           <div className="text-sm text-gray-500 flex items-center">
             {filteredAndSortedItems.length} item{filteredAndSortedItems.length !== 1 ? 's' : ''} found
@@ -698,9 +714,6 @@ const StockBalance = () => {
           onClose={closeBatchDetails}
         />
       )}
-
-      {/* Add Stock Modal */}
-      
 
       {/* View Transactions Modal */}
       <ViewTransactionsModal
