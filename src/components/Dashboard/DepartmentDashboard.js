@@ -134,9 +134,17 @@ const DepartmentDashboard = ({ user, onLogout }) => {
                   </svg>
                 </div>
                 <h4 className="text-sm font-bold text-white drop-shadow-sm">
-                  {user?.department?.name || 'Chemistry Lab'}
+                  {user?.department?.name || 'Not Assigned'}
                 </h4>
               </div>
+              {user?.unit?.name && (
+                <div className="flex items-center text-xs text-cyan-200 mb-2">
+                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-5 0H3m5 0v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  Unit: {user.unit.name}
+                </div>
+              )}
               <div className="flex items-center text-xs text-indigo-300">
                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -194,7 +202,7 @@ const DepartmentDashboard = ({ user, onLogout }) => {
                 {menuItems.find(item => item.path === location.pathname)?.name || 'Department Portal'}
               </h1>
               <p className="text-sm text-gray-600 mt-1">
-                {user?.department?.name || 'Chemistry Lab'} - CGCLA Item Request System
+                {user?.department?.name || 'Not Assigned'} {user?.unit?.name ? `- ${user.unit.name}` : ''} - CGCLA Item Request System
               </p>
             </div>
             <div className="flex items-center space-x-4">

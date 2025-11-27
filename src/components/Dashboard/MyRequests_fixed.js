@@ -26,18 +26,32 @@ const MyRequests = ({ user }) => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched requests data:', data); // Debug log
         // Transform Django request data to match frontend structure
-        const transformedRequests = data.map(request => ({
-          id: `REQ-${request.id}`,
-          itemName: request.item?.name || 'Unknown Item',
-          category: request.item?.category?.name || 'Unknown Category',
-          quantity: request.quantity,
-          unit: request.item?.unit || 'pieces',
-          status: request.status.charAt(0).toUpperCase() + request.status.slice(1),
-          requestDate: new Date(request.created_at).toISOString().split('T')[0],
-          justification: request.feedback || 'No justification provided',
-          requesterName: request.requester_name || user?.username || 'Unknown'
-        }));
+        const transformedRequests = data.map(request => {
+          console.log('Request feedback:', request.feedback, 'Status:', request.status); // Debug log
+          // The backend uses a single 'feedback' field for both approval and rejection
+          // We'll separate it based on status
+          const isRejected = request.status.toLowerCase() === 'rejected';
+          const isApproved = request.status.toLowerCase() === 'approved';
+          
+          return {
+            id: `REQ-${request.id}`,
+            itemName: request.item?.name || 'Unknown Item',
+            category: request.item?.category?.name || 'Unknown Category',
+            quantity: request.quantity,
+            approvedQuantity: request.approved_quantity || null,
+            unit: request.item?.unit || 'pieces',
+            status: request.status.charAt(0).toUpperCase() + request.status.slice(1),
+            requestDate: new Date(request.created_at).toISOString().split('T')[0],
+            justification: isRejected || isApproved ? '' : (request.feedback || 'No justification provided'),
+            // Use feedback field for both rejection reason and approval feedback based on status
+            rejectionReason: isRejected ? request.feedback : null,
+            approvalFeedback: isApproved ? request.feedback : null,
+            requesterName: request.requester_name || user?.username || 'Unknown'
+          };
+        });
+        console.log('Transformed requests:', transformedRequests); // Debug log
         setRequests(transformedRequests);
       } else {
         console.error('Failed to fetch requests');
@@ -397,7 +411,13 @@ const MyRequests = ({ user }) => {
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {filteredRequests.map((request) => (
+            {filteredRequests.map((request) => {
+              console.log(`Rendering request ${request.id}:`, {
+                status: request.status,
+                rejectionReason: request.rejectionReason,
+                approvalFeedback: request.approvalFeedback
+              }); // Debug log
+              return (
               <div key={request.id} className="p-6 hover:bg-gray-50">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
@@ -416,10 +436,48 @@ const MyRequests = ({ user }) => {
                     <p className="text-sm text-gray-600">{request.category}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Quantity</p>
+                    <p className="text-sm text-gray-600">Quantity Requested</p>
                     <p className="text-sm font-medium text-gray-900">{request.quantity} {request.unit}</p>
+                    {request.approvedQuantity && request.status.toLowerCase() === 'approved' && (
+                      <p className="text-sm text-green-600 mt-1">
+                        Approved: <span className="font-medium">{request.approvedQuantity} {request.unit}</span>
+                        {request.approvedQuantity < request.quantity && (
+                          <span className="text-amber-600"> (Partial)</span>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
+                
+                {/* Rejection Reason */}
+                {request.rejectionReason && request.status.toLowerCase() === 'rejected' && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
+                    <div className="flex">
+                      <svg className="w-5 h-5 text-red-600 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-red-800 mb-1">Rejection Reason:</p>
+                        <p className="text-sm text-red-700">{request.rejectionReason}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Approval Feedback */}
+                {request.approvalFeedback && request.status.toLowerCase() === 'approved' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
+                    <div className="flex">
+                      <svg className="w-5 h-5 text-green-600 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-green-800 mb-1">Approval Feedback:</p>
+                        <p className="text-sm text-green-700">{request.approvalFeedback}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {request.justification && (
                   <div className="bg-gray-50 rounded-lg p-3">
@@ -429,7 +487,8 @@ const MyRequests = ({ user }) => {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

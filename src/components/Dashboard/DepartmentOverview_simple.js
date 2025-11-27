@@ -91,7 +91,7 @@ const DepartmentOverview = ({ user }) => {
             user?.username || 'Department User'}!
         </h2>
         <p className="text-blue-100">
-          Department: {user?.department?.name || 'Chemistry Lab'} | 
+          Department: {user?.department?.name || 'Not Assigned'} {user?.unit?.name ? `| Unit: ${user.unit.name}` : ''} | 
           Manage your laboratory item requests efficiently
         </p>
       </div>

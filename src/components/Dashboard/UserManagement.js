@@ -7,7 +7,8 @@ const UserModal = ({
   newUser, 
   setNewUser, 
   roles, 
-  departments, 
+  departments,
+  units,
   resetForm, 
   handleAddUser, 
   handleUpdateUser 
@@ -125,6 +126,23 @@ const UserModal = ({
               </select>
             </div>
 
+            {/* Unit */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
+              <select
+                value={newUser.unit}
+                onChange={(e) => setNewUser({...newUser, unit: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              >
+                <option value="">Select a unit</option>
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -195,6 +213,7 @@ const UserManagement = ({ user }) => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [units, setUnits] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -212,6 +231,7 @@ const UserManagement = ({ user }) => {
     last_name: '',
     role: '',
     department: '',
+    unit: '',
     is_active: true,
     password: '',
     confirmPassword: ''
@@ -238,6 +258,8 @@ const UserManagement = ({ user }) => {
       }
       
       const data = await response.json();
+      console.log('Fetched users data:', data.results || data);
+      console.log('Sample user with unit:', (data.results || data)[0]);
       setUsers(data.results || data);
       setError(null);
     } catch (error) {
@@ -282,10 +304,28 @@ const UserManagement = ({ user }) => {
     }
   };
 
+  const fetchUnits = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/units/`, {
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setUnits(data.results || data);
+    } catch (error) {
+      console.error('Error fetching units:', error);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
     fetchRoles();
     fetchDepartments();
+    fetchUnits();
   }, []);
 
   // Filter and pagination logic
@@ -321,8 +361,11 @@ const UserManagement = ({ user }) => {
         password: newUser.password,
         role_id: newUser.role || null,
         department_id: newUser.department || null,
+        unit_id: newUser.unit || null,
         is_active: newUser.is_active
       };
+
+      console.log('Creating user with data:', userData);
 
       const response = await fetch(`${API_BASE}/auth/users/`, {
         method: 'POST',
@@ -334,6 +377,9 @@ const UserManagement = ({ user }) => {
         const errorData = await response.json();
         throw new Error(Object.values(errorData).flat().join(', '));
       }
+
+      const createdUser = await response.json();
+      console.log('Created user response:', createdUser);
 
       await fetchUsers();
       resetForm();
@@ -353,6 +399,7 @@ const UserManagement = ({ user }) => {
         last_name: newUser.last_name,
         role_id: newUser.role || null,
         department_id: newUser.department || null,
+        unit_id: newUser.unit || null,
         is_active: newUser.is_active
       };
 
@@ -415,6 +462,7 @@ const UserManagement = ({ user }) => {
       last_name: userToEdit.last_name,
       role: userToEdit.role?.id || '',
       department: userToEdit.department?.id || '',
+      unit: userToEdit.unit?.id || '',
       is_active: userToEdit.is_active,
       password: '',
       confirmPassword: ''
@@ -430,6 +478,7 @@ const UserManagement = ({ user }) => {
       last_name: '',
       role: '',
       department: '',
+      unit: '',
       is_active: true,
       password: '',
       confirmPassword: ''
@@ -633,6 +682,7 @@ const UserManagement = ({ user }) => {
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -662,6 +712,12 @@ const UserManagement = ({ user }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {user.department?.name || 'No Department'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {(() => {
+                      console.log(`User ${user.username} unit data:`, user.unit);
+                      return user.unit?.name || 'No Unit';
+                    })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(user.is_active)}`}>
@@ -769,6 +825,7 @@ const UserManagement = ({ user }) => {
         setNewUser={setNewUser}
         roles={roles}
         departments={departments}
+        units={units}
         resetForm={resetForm}
         handleAddUser={handleAddUser}
         handleUpdateUser={handleUpdateUser}

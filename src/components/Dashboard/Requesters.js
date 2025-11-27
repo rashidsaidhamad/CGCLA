@@ -13,6 +13,9 @@ const Requesters = () => {
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [requestsPerPage] = useState(10);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingRequestId, setRejectingRequestId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -427,12 +430,31 @@ const Requesters = () => {
 
   // Handle reject with reason
   const handleReject = (requestId) => {
-    const reason = prompt('Rejection reason (required):');
-    if (reason && reason.trim()) {
-      rejectRequest(requestId, reason);
-    } else {
-      alert('Rejection reason is required!');
+    setRejectingRequestId(requestId);
+    setRejectionReason('');
+    setShowRejectModal(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectionReason.trim()) {
+      alert('Please provide a rejection reason!');
+      return;
     }
+
+    try {
+      await rejectRequest(rejectingRequestId, rejectionReason);
+      setShowRejectModal(false);
+      setRejectingRequestId(null);
+      setRejectionReason('');
+    } catch (error) {
+      console.error('Error in confirmReject:', error);
+    }
+  };
+
+  const cancelReject = () => {
+    setShowRejectModal(false);
+    setRejectingRequestId(null);
+    setRejectionReason('');
   };
 
   // Get item name by ID or object
@@ -925,6 +947,89 @@ const Requesters = () => {
           </div>
         )}
       </div>
+
+      {/* Rejection Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900">Reject Request</h3>
+                </div>
+                <button
+                  onClick={cancelReject}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Please provide a detailed reason for rejecting this request. This information will be sent to the requester.
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rejection Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                
+                  rows={5}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                  autoFocus
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  {rejectionReason.length}/500 characters
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div className="flex">
+                  <svg className="w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                 
+                </div>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 rounded-b-lg">
+              <button
+                onClick={cancelReject}
+                className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReject}
+                disabled={!rejectionReason.trim()}
+                className={`px-5 py-2.5 rounded-lg text-white font-medium transition-colors flex items-center ${
+                  !rejectionReason.trim()
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

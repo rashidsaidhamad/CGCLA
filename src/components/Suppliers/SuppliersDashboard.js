@@ -214,6 +214,39 @@ const SuppliersDashboard = () => {
     }
   };
 
+  const handleSaveDraft = async (grnData) => {
+    try {
+      setIsLoading(true);
+      
+      // Save draft to localStorage for now
+      const drafts = JSON.parse(localStorage.getItem('grn_drafts') || '[]');
+      const draftId = Date.now();
+      const newDraft = {
+        id: draftId,
+        ...grnData,
+        savedAt: new Date().toISOString()
+      };
+      
+      drafts.push(newDraft);
+      localStorage.setItem('grn_drafts', JSON.stringify(drafts));
+      
+      console.log('Draft saved:', newDraft);
+      
+      // Optionally, you can also save to backend if you have an endpoint
+      // const response = await fetch(`${API_BASE}/suppliers/receiving-notes/draft/`, {
+      //   method: 'POST',
+      //   headers: getHeaders(),
+      //   body: JSON.stringify(grnData),
+      // });
+      
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      alert(`Error saving draft: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Fetch categories and suppliers for the form
   const fetchCategories = async () => {
     try {
@@ -1434,7 +1467,11 @@ const SuppliersDashboard = () => {
 
           {/* Create GRN Tab */}
           {activeTab === 'create-grn' && (
-            <GoodReceivingNote onSubmitNote={handleCreateGRN} suppliers={suppliers} />
+            <GoodReceivingNote 
+              onSubmitNote={handleCreateGRN} 
+              onSaveDraft={handleSaveDraft}
+              suppliers={suppliers} 
+            />
           )}
 
           {/* Manage Categories Tab */}
