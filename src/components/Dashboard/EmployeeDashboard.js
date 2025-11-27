@@ -50,8 +50,16 @@ const EmployeeDashboard = ({ user, onLogout }) => {
 
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-gradient-to-b from-indigo-900 via-indigo-800 to-indigo-900 shadow-2xl transition-all duration-500 ease-in-out flex flex-col relative overflow-hidden`}>
+      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-gradient-to-b from-indigo-900 via-indigo-800 to-indigo-900 shadow-2xl transition-all duration-500 ease-in-out flex flex-col relative overflow-hidden fixed lg:static inset-y-0 left-0 z-50 ${!sidebarOpen && 'hidden lg:flex'}`}>
         
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-purple-600/10"></div>
@@ -178,30 +186,49 @@ const EmployeeDashboard = ({ user, onLogout }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            
+            <div className="flex-1 ml-4 lg:ml-0">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 truncate">
                 {menuItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
               </h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 mt-1 hidden sm:block">
                 CGCLA Inventory Management System
               </p>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="hidden md:flex items-center text-sm text-gray-600">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <div className="hidden xl:flex items-center text-xs sm:text-sm text-gray-600">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
+                <span className="hidden 2xl:inline">
+                  {new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </span>
+                <span className="2xl:hidden">
+                  {new Date().toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </span>
               </div>
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>
               </div>
             </div>
           </div>
@@ -209,7 +236,7 @@ const EmployeeDashboard = ({ user, onLogout }) => {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="p-6">
+          <div className="p-3 sm:p-4 md:p-6">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard/requesters" replace />} />
               <Route path="/requesters" element={<Requesters />} />
