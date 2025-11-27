@@ -35,7 +35,7 @@ const ChiefDashboard = ({ user, onLogout }) => {
       )}
       
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white shadow-lg transition-all duration-300 ease-in-out flex flex-col fixed lg:static inset-y-0 left-0 z-50 ${!sidebarOpen && 'hidden lg:flex'}`}>
+      <div className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-16'} bg-white shadow-lg transition-all duration-300 ease-in-out flex flex-col fixed lg:relative inset-y-0 left-0 z-50`}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
           {sidebarOpen && (
@@ -146,9 +146,9 @@ const ChiefDashboard = ({ user, onLogout }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden w-full lg:w-auto">
         {/* Top Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             {/* Mobile Menu Button */}
             <button
@@ -198,7 +198,7 @@ const ChiefDashboard = ({ user, onLogout }) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto bg-gray-50" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="p-3 sm:p-4 md:p-6">
             <Routes>
               <Route path="/" element={<ChiefOverview user={user} />} />
