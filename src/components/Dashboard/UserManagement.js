@@ -126,23 +126,6 @@ const UserModal = ({
               </select>
             </div>
 
-            {/* Unit */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
-              <select
-                value={newUser.unit}
-                onChange={(e) => setNewUser({...newUser, unit: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-              >
-                <option value="">Select a unit</option>
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -231,7 +214,6 @@ const UserManagement = ({ user }) => {
     last_name: '',
     role: '',
     department: '',
-    unit: '',
     is_active: true,
     password: '',
     confirmPassword: ''
@@ -361,7 +343,6 @@ const UserManagement = ({ user }) => {
         password: newUser.password,
         role_id: newUser.role || null,
         department_id: newUser.department || null,
-        unit_id: newUser.unit || null,
         is_active: newUser.is_active
       };
 
@@ -399,7 +380,6 @@ const UserManagement = ({ user }) => {
         last_name: newUser.last_name,
         role_id: newUser.role || null,
         department_id: newUser.department || null,
-        unit_id: newUser.unit || null,
         is_active: newUser.is_active
       };
 
@@ -462,7 +442,6 @@ const UserManagement = ({ user }) => {
       last_name: userToEdit.last_name,
       role: userToEdit.role?.id || '',
       department: userToEdit.department?.id || '',
-      unit: userToEdit.unit?.id || '',
       is_active: userToEdit.is_active,
       password: '',
       confirmPassword: ''
@@ -478,7 +457,6 @@ const UserManagement = ({ user }) => {
       last_name: '',
       role: '',
       department: '',
-      unit: '',
       is_active: true,
       password: '',
       confirmPassword: ''

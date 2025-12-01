@@ -3,7 +3,7 @@ import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import AdminOverview from './AdminOverview';
 import UserManagement from './UserManagement';
 import DepartmentManagement from './DepartmentManagement';
-import SystemSettings from './SystemSettings';
+import DepartmentStatistics from './DepartmentStatistics';
 import '../../styles/sidebar-animations.css';
 
 const AdminDashboard = ({ user, onLogout }) => {
@@ -24,10 +24,10 @@ const AdminDashboard = ({ user, onLogout }) => {
       description: 'Manage departments and units'
     },
     { 
-      path: '/admin/settings', 
-      name: 'System Settings', 
-      icon: '⚙️',
-      description: 'System configuration and settings'
+      path: '/admin/statistics', 
+      name: 'Department Statistics', 
+      icon: '📊',
+      description: 'View department request analytics'
     }
   ];
 
@@ -224,7 +224,7 @@ const AdminDashboard = ({ user, onLogout }) => {
             <Routes>
               <Route path="/users" element={<UserManagement user={user} />} />
               <Route path="/departments" element={<DepartmentManagement user={user} />} />
-              <Route path="/settings" element={<SystemSettings user={user} />} />
+              <Route path="/statistics" element={<DepartmentStatistics user={user} />} />
               <Route path="*" element={<Navigate to="/admin/users" replace />} />
             </Routes>
           </div>
