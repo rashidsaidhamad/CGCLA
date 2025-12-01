@@ -116,8 +116,15 @@ const ItemIssuedReport = () => {
     });
     
     console.log('=== Categories Map ===', categoriesMap);
-    console.log('=== Sample Raw Inventory Items ===', inventory.slice(0, 3));
-    console.log('=== DETAILED First Item ===', JSON.stringify(inventory[0], null, 2));
+    console.log('=== Sample Raw Inventory Items (first 3) ===');
+    inventory.slice(0, 3).forEach(item => {
+      console.log(`  Item ID ${item.id}: "${item.name}"`, {
+        category: item.category,
+        category_type: typeof item.category,
+        category_id: item.category_id,
+        has_category: !!item.category
+      });
+    });
 
     // Create a map of damage reports by item ID for quick lookup
     const damageReportsMap = {};
@@ -153,18 +160,17 @@ const ItemIssuedReport = () => {
         let categoryId = null;
         let categoryName = 'Uncategorized';
         
-        // Log the raw item structure for first 3 items
-        if (Object.keys(itemStockMap).length < 3) {
-          console.log(`📦 Raw item structure for "${item.name}":`, {
-            id: item.id,
-            name: item.name,
-            category: item.category,
-            category_id: item.category_id,
-            categoryType: typeof item.category,
-            hasCategory: !!item.category,
-            hasCategoryId: !!item.category_id,
-            allKeys: Object.keys(item)
-          });
+        // Log the raw category data for debugging (first 3 items only)
+        const debugIndex = Object.keys(itemStockMap).length;
+        if (debugIndex < 3) {
+          console.log(`📦 Item #${debugIndex + 1}: "${item.name}"`);
+          console.log('  Raw category field:', item.category);
+          console.log('  Type:', typeof item.category);
+          console.log('  Is object?', typeof item.category === 'object' && item.category !== null);
+          if (typeof item.category === 'object' && item.category !== null) {
+            console.log('  Category.id:', item.category.id);
+            console.log('  Category.name:', item.category.name);
+          }
         }
         
         if (item.category) {
@@ -172,18 +178,30 @@ const ItemIssuedReport = () => {
             // Category is an object with id and name
             categoryId = item.category.id || null;
             categoryName = item.category.name || 'Uncategorized';
+            if (debugIndex < 3) {
+              console.log(`  ✓ Extracted from object: categoryId=${categoryId}, categoryName="${categoryName}"`);
+            }
           } else if (typeof item.category === 'number') {
             // Category is just an ID number
             categoryId = item.category;
             categoryName = categoriesMap[categoryId] || 'Uncategorized';
+            if (debugIndex < 3) {
+              console.log(`  ✓ Extracted from number: categoryId=${categoryId}, categoryName="${categoryName}"`);
+            }
           } else if (typeof item.category === 'string') {
             // Category is a string (could be name or numeric string)
             const parsedId = parseInt(item.category);
             if (!isNaN(parsedId)) {
               categoryId = parsedId;
               categoryName = categoriesMap[categoryId] || 'Uncategorized';
+              if (debugIndex < 3) {
+                console.log(`  ✓ Extracted from string: categoryId=${categoryId}, categoryName="${categoryName}"`);
+              }
             } else {
               categoryName = item.category;
+              if (debugIndex < 3) {
+                console.log(`  ✓ Using category name: "${categoryName}"`);
+              }
             }
           }
         }
@@ -192,15 +210,23 @@ const ItemIssuedReport = () => {
         if (categoryId === null && item.category_id) {
           categoryId = typeof item.category_id === 'number' ? item.category_id : parseInt(item.category_id);
           categoryName = categoriesMap[categoryId] || categoryName;
+          if (debugIndex < 3) {
+            console.log(`  ✓ Extracted from category_id field: categoryId=${categoryId}`);
+          }
         }
         
         // Last resort: check for categoryId field (camelCase)
         if (categoryId === null && item.categoryId) {
           categoryId = typeof item.categoryId === 'number' ? item.categoryId : parseInt(item.categoryId);
           categoryName = categoriesMap[categoryId] || categoryName;
+          if (debugIndex < 3) {
+            console.log(`  ✓ Extracted from categoryId field: categoryId=${categoryId}`);
+          }
         }
         
-        console.log(`✓ [processItemData] Item "${item.name}": categoryId=${categoryId}, categoryName="${categoryName}"`);
+        if (debugIndex < 3) {
+          console.log(`  📊 Final result: categoryId=${categoryId}, categoryName="${categoryName}"`);
+        }
         
         itemStockMap[item.id] = {
           id: item.id,
@@ -321,15 +347,16 @@ const ItemIssuedReport = () => {
       categoriesMap[cat.id] = cat.name;
     });
 
-    console.log('recalculateDataForMonth - Sample inventory items:', inventory.slice(0, 2).map(item => ({
-      id: item.id,
-      name: item.name,
-      category: item.category,
-      categoryStructure: typeof item.category,
-      categoryId: item.category?.id,
-      categoryIdType: typeof item.category?.id,
-      allKeys: Object.keys(item)
-    })));
+    console.log('=== recalculateDataForMonth ===');
+    console.log('Target month:', targetMonth, 'Target year:', targetYear);
+    console.log('Sample inventory items (first 2):');
+    inventory.slice(0, 2).forEach(item => {
+      console.log(`  Item: "${item.name}"`, {
+        category: item.category,
+        categoryType: typeof item.category,
+        categoryId: item.category?.id
+      });
+    });
 
     const damageReportsMap = {};
     damageReports.forEach(({ itemId, reports }) => {
@@ -382,8 +409,6 @@ const ItemIssuedReport = () => {
           categoryId = typeof item.categoryId === 'number' ? item.categoryId : parseInt(item.categoryId);
           categoryName = categoriesMap[categoryId] || categoryName;
         }
-        
-        console.log(`✓ [recalculateDataForMonth] Item "${item.name}": categoryId=${categoryId}, categoryName="${categoryName}"`);
         
         itemStockMap[item.id] = {
           id: item.id,
@@ -547,8 +572,8 @@ const ItemIssuedReport = () => {
       console.log('Selected category ID from dropdown:', categoryId);
       console.log('Before category filter:', filtered.length, 'items');
       
-      // Debug: show ALL items with their categories
-      console.log('All items before filter:', filtered.map(item => ({
+      // Debug: show first 5 items with their categories
+      console.log('Sample items before filter (first 5):', filtered.slice(0, 5).map(item => ({
         id: item.id,
         name: item.itemName,
         categoryId: item.categoryId,
@@ -562,27 +587,25 @@ const ItemIssuedReport = () => {
         const catId = item.categoryId;
         categoryCount[catId] = (categoryCount[catId] || 0) + 1;
       });
-      console.log('Items grouped by categoryId:', categoryCount);
+      console.log('Items distribution by categoryId:', categoryCount);
       
       filtered = filtered.filter(item => {
         const itemCategoryId = item.categoryId;
         const matches = itemCategoryId !== null && itemCategoryId !== undefined && itemCategoryId === categoryId;
-        console.log(`Item "${item.itemName}": categoryId=${itemCategoryId}, matches=${matches}, looking for=${categoryId}`);
         return matches;
       });
       
-      console.log('After category filter:', filtered.length, 'items');
+      console.log('✅ After category filter:', filtered.length, 'items matched');
       if (filtered.length > 0) {
-        console.log('Filtered items:', filtered.map(item => ({
+        console.log('Sample filtered items (first 3):', filtered.slice(0, 3).map(item => ({
           id: item.id,
           name: item.itemName,
-          categoryId: item.categoryId
+          categoryId: item.categoryId,
+          category: item.category
         })));
       } else {
-        console.log('❌ NO ITEMS MATCHED THE CATEGORY FILTER!');
-        console.log('This means either:');
-        console.log('1. No items have categoryId =', categoryId);
-        console.log('2. Category IDs are not being extracted correctly');
+        console.log('⚠️ NO ITEMS MATCHED - Expected category ID:', categoryId);
+        console.log('Available category IDs in data:', Object.keys(categoryCount).join(', '));
       }
     }
 
