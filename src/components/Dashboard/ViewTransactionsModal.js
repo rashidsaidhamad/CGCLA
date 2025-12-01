@@ -92,32 +92,58 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
           if (grn) {
             // CRITICAL FIX: Use grn_item_index if present (exact match) to avoid matching all transactions to the first GRN item
             let match = null;
-            
+
             // Priority 1: Use explicit grn_item_index if backend persisted it
             if (t.grn_item_index !== undefined && t.grn_item_index !== null && grn.items && grn.items[t.grn_item_index]) {
               match = grn.items[t.grn_item_index];
-            } 
-            // Priority 2: Try transaction-specific identifiers (NOT selectedItem, which is same for all transactions)
-            else if (t.item_code || t.code || t.sku || t.description || t.name || t.grn_item_code || t.grn_item_description) {
-              const candidates = [];
-              const pushIf = (v) => { if (v !== undefined && v !== null) { const s = String(v).trim().toLowerCase(); if (s) candidates.push(s); } };
-              pushIf(t.grn_item_code);        // Prefer grn-specific fields sent in add-stock
-              pushIf(t.grn_item_description);
-              pushIf(t.item_code);
-              pushIf(t.code);
-              pushIf(t.sku);
-              pushIf(t.description);
-              pushIf(t.name);
+            } else {
+              // Priority 2: Try transaction-specific identifiers (NOT selectedItem, which is same for all transactions)
+              const hasIdentifiers = t.grn_item_code || t.grn_item_description || t.item_code || t.code || t.sku || t.description || t.name;
+              if (hasIdentifiers) {
+                const candidates = [];
+                const pushIf = (v) => { if (v !== undefined && v !== null) { const s = String(v).trim().toLowerCase(); if (s) candidates.push(s); } };
+                pushIf(t.grn_item_code);        // Prefer grn-specific fields sent in add-stock
+                pushIf(t.grn_item_description);
+                pushIf(t.item_code);
+                pushIf(t.code);
+                pushIf(t.sku);
+                pushIf(t.description);
+                pushIf(t.name);
 
-              // Try to match inside GRN.items - but this can still be ambiguous if descriptions overlap
-              match = (grn.items || []).find(it => {
-                const itCode = (it.item_code || it.code || '').toString().trim().toLowerCase();
-                const itDesc = (it.description || it.name || '').toString().trim().toLowerCase();
-                return candidates.some(c => (
-                  (itCode && itCode === c) ||
-                  (itDesc && itDesc === c)
-                ));
-              });
+                // Find all possible matches inside GRN.items
+                const possible = (grn.items || []).filter(it => {
+                  const itCode = (it.item_code || it.code || '').toString().trim().toLowerCase();
+                  const itDesc = (it.description || it.name || '').toString().trim().toLowerCase();
+                  return candidates.some(c => (
+                    (itCode && itCode === c) ||
+                    (itDesc && itDesc === c)
+                  ));
+                });
+
+                if (possible.length === 1) {
+                  match = possible[0];
+                } else if (possible.length > 1) {
+                  // Try to disambiguate by matching quantity
+                  const qty = (t.quantity !== undefined && t.quantity !== null) ? Number(t.quantity) : null;
+                  if (qty !== null && !isNaN(qty)) {
+                    const qtyMatch = possible.find(it => {
+                      const itQty = (it.accepted || it.quantity || it.original_quantity || it.remaining_quantity || it.qty);
+                      return itQty !== undefined && itQty !== null && Number(itQty) === qty;
+                    });
+                    if (qtyMatch) match = qtyMatch;
+                  }
+
+                  // If still ambiguous, prefer exact code match over description
+                  if (!match) {
+                    const codeMatch = possible.find(it => {
+                      const itCode = (it.item_code || it.code || '').toString().trim().toLowerCase();
+                      return itCode && candidates.includes(itCode);
+                    });
+                    if (codeMatch) match = codeMatch;
+                  }
+                }
+                // else leave match null to avoid incorrect assignment
+              }
             }
 
             // If transaction doesn't have a unit_price, but the matched GRN item has one, use it
@@ -475,13 +501,18 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                 <th>Date</th>
                 <th>Transaction Type</th>
                 <th class="text-center">Quantity</th>
+                <th class="text-center">Running Balance</th>
                 <th class="text-right">Unit Price (TSh)</th>
                 <th>Supplier</th>
                 <th class="text-right">Total Price (TSh)</th>
               </tr>
             </thead>
             <tbody>
-              ${filteredTransactions.map(t => `
+              ${(() => {
+                let runningBalance = 0;
+                return filteredTransactions.map(t => {
+                  runningBalance += Number(t.quantity) || 0;
+                  return `
                 <tr>
                   <td>${new Date(t.date).toLocaleDateString()}</td>
                   <td>
@@ -491,6 +522,9 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                   </td>
                   <td class="text-center ${t.quantity > 0 ? 'positive' : 'negative'}">
                     ${t.quantity > 0 ? '+' : ''}${t.quantity} ${selectedItem.unit}
+                  </td>
+                  <td class="text-center" style="font-weight: 600; color: ${runningBalance <= 0 ? '#dc2626' : '#2563eb'};">
+                    ${runningBalance} ${selectedItem.unit}
                   </td>
                   <td class="text-right">
                     ${(t.unit_price !== undefined && t.unit_price !== null) 
@@ -510,7 +544,9 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                     }
                   </td>
                 </tr>
-              `).join('')}
+              `;
+                }).join('');
+              })()}
             </tbody>
           </table>
           
@@ -689,7 +725,39 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
             </div>
           ) : (
             <>
-              {/* Filter summary and Total */}
+              {/* Calculate total stock from ALL filtered transactions */}
+              {(() => {
+                const calculatedStock = filteredTransactions.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+                return (
+                  <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Total Transactions</p>
+                        <p className="text-xl font-bold text-gray-900">{filteredTransactions.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Calculated Stock (from transactions)</p>
+                        <p className={`text-xl font-bold ${calculatedStock <= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {calculatedStock} {selectedItem.unit}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Current Stock (from database)</p>
+                        <p className={`text-xl font-bold ${selectedItem.stock !== calculatedStock ? 'text-orange-600' : 'text-blue-600'}`}>
+                          {selectedItem.stock} {selectedItem.unit}
+                          {selectedItem.stock !== calculatedStock && (
+                            <span className="ml-2 text-sm text-orange-600">
+                              (⚠️ Mismatch!)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              
+              {/* Pagination info and Total Amount */}
               <div className="mb-4 flex justify-between items-center">
                 <div className="text-sm text-gray-600">
                   Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredTransactions.length)} of {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}
@@ -706,13 +774,19 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Running Balance</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price (TSh)</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Price (TSh)</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {currentTransactions.length > 0 ? currentTransactions.map((transaction, index) => (
+                  {currentTransactions.length > 0 ? (() => {
+                    // Calculate running balance for each transaction
+                    let runningBalance = 0;
+                    return currentTransactions.map((transaction, index) => {
+                      runningBalance += Number(transaction.quantity) || 0;
+                      return (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(transaction.date).toLocaleDateString()}
@@ -737,6 +811,11 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                           {transaction.quantity > 0 ? '+' : ''}{transaction.quantity} {selectedItem.unit}
                         </span>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <span className={`${runningBalance <= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                          {runningBalance} {selectedItem.unit}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {(transaction.unit_price !== undefined && transaction.unit_price !== null)
                           ? Number(transaction.unit_price).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -755,9 +834,11 @@ const ViewTransactionsModal = ({ isOpen, onClose, selectedItem }) => {
                         }
                       </td>
                     </tr>
-                  )) : (
+                      );
+                    });
+                  })() : (
                     <tr>
-                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                         <div className="flex flex-col items-center">
                           <svg className="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

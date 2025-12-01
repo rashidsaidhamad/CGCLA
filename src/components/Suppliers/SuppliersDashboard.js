@@ -438,7 +438,8 @@ const SuppliersDashboard = () => {
     try {
       setIsLoading(true);
       
-      for (const item of stockFormData.formItems) {
+      for (let index = 0; index < stockFormData.formItems.length; index++) {
+        const item = stockFormData.formItems[index];
         if (item.isExistingItem && item.existingItem) {
           // Update existing item stock
           const updateData = {
@@ -504,7 +505,14 @@ const SuppliersDashboard = () => {
             location: item.location.trim() || 'Warehouse',
             unit_price: parseFloat(item.unit_price) || 0.00,
             expiry_date: item.expiry_date && item.expiry_date !== '' ? item.expiry_date : null,
-            po_number: stockFormData.poNumber.trim()
+            po_number: stockFormData.poNumber.trim(),
+            // Include GRN and supplier info for the initial transaction
+            grn_id: stockFormData.grnId,
+            grn_item_index: index,  // Index of this item in the GRN items array
+            grn_item_code: item.item_code || null,  // Original item code from GRN
+            supplier_name: (item.supplier_id && suppliers && suppliers.length > 0)
+              ? (suppliers.find(s => s.id === Number(item.supplier_id)) || {}).name
+              : null
           };
           
           console.log('Creating new item:', stockData);
@@ -524,32 +532,10 @@ const SuppliersDashboard = () => {
           const result = await response.json();
           console.log(`Successfully created item:`, result);
 
-          // After creating a new item, create an initial stock transaction that records
-          // the supplier and unit_price used when adding this GRN's items to stock.
-          try {
-            const supplierNameNew = (item.supplier_id && suppliers && suppliers.length > 0)
-              ? (suppliers.find(s => s.id === Number(item.supplier_id)) || {}).name
-              : (item.supplier_name || null);
-
-            await fetch(`${API_BASE}/inventory/add-stock/`, {
-              method: 'POST',
-              headers: getHeaders(),
-              body: JSON.stringify({
-                item_id: result.id,
-                quantity: parseInt(item.accepted) || 0,
-                unit_price: parseFloat(item.unit_price) || 0,
-                date: new Date().toISOString().split('T')[0],
-                supplier_id: item.supplier_id && item.supplier_id !== '' ? parseInt(item.supplier_id) : null,
-                supplier_name: supplierNameNew || null,
-                grn_id: stockFormData.grnId,
-                grn_item_index: item.grn_item_index ?? null,
-                grn_item_code: item.item_code || item.code || null,
-                grn_item_description: item.description || item.name || null,
-              }),
-            });
-          } catch (txnErr) {
-            console.warn('Failed to create initial stock transaction for new item:', txnErr);
-          }
+          // NOTE: Do NOT call add-stock for newly created items!
+          // The create endpoint already sets the initial stock and creates a transaction.
+          // Calling add-stock would DOUBLE the stock quantity (stock=49 becomes stock=98)
+          console.log(`Skipping add-stock for newly created item - initial stock already set to ${parseInt(item.accepted)}`)
         }
       }
       
