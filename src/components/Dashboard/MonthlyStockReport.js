@@ -19,6 +19,12 @@ const MonthlyStockReport = ({ user }) => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [transactionsPerPage, setTransactionsPerPage] = useState(10);
 
   // API configuration
   const API_BASE = 'http://127.0.0.1:8000/api';
@@ -86,10 +92,27 @@ const MonthlyStockReport = ({ user }) => {
       // Filter transactions by selected month and year
       const filteredTransactions = allTransactions.filter(transaction => {
         const transactionDate = new Date(transaction.date);
-        return transactionDate.getMonth() === selectedMonth && 
-               transactionDate.getFullYear() === selectedYear;
+        const txMonth = transactionDate.getMonth();
+        const txYear = transactionDate.getFullYear();
+        const matches = txMonth === selectedMonth && txYear === selectedYear;
+        
+        // Debug logging for first few transactions
+        if (allTransactions.indexOf(transaction) < 3) {
+          console.log(`Transaction ${transaction.id}:`, {
+            date: transaction.date,
+            parsed: transactionDate.toISOString(),
+            month: txMonth,
+            year: txYear,
+            selectedMonth,
+            selectedYear,
+            matches
+          });
+        }
+        
+        return matches;
       });
 
+      console.log(`Filtered ${filteredTransactions.length} transactions for ${monthNames[selectedMonth]} ${selectedYear} from ${allTransactions.length} total`);
       setStockTransactions(filteredTransactions);
 
       // Calculate monthly statistics
@@ -117,10 +140,32 @@ const MonthlyStockReport = ({ user }) => {
   useEffect(() => {
     console.log(`Fetching data for ${monthNames[selectedMonth]} ${selectedYear}`);
     fetchStockData();
+    setCurrentPage(1);
+    setTransactionsPage(1);
   }, [selectedMonth, selectedYear]);
 
   const handleRefresh = () => {
     fetchStockData();
+  };
+
+  // Calculate pagination for inventory items
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = inventoryItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(inventoryItems.length / itemsPerPage);
+
+  // Calculate pagination for transactions
+  const indexOfLastTransaction = transactionsPage * transactionsPerPage;
+  const indexOfFirstTransaction = indexOfLastTransaction - transactionsPerPage;
+  const currentTransactions = stockTransactions.slice(indexOfFirstTransaction, indexOfLastTransaction);
+  const totalTransactionPages = Math.ceil(stockTransactions.length / transactionsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleTransactionsPageChange = (pageNumber) => {
+    setTransactionsPage(pageNumber);
   };
 
   if (isLoading) {
@@ -194,79 +239,10 @@ const MonthlyStockReport = ({ user }) => {
       </div>
 
       {/* Stock Balance Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Items</p>
-              <p className="text-2xl font-bold text-blue-600">{stockData.total_items}</p>
-              <p className="text-xs text-gray-500">Items in inventory</p>
-            </div>
-            <div className="text-3xl">📦</div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
-              <p className="text-2xl font-bold text-yellow-600">{stockData.low_stock_items}</p>
-              <p className="text-xs text-gray-500">Below minimum level</p>
-            </div>
-            <div className="text-3xl">⚠️</div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-              <p className="text-2xl font-bold text-red-600">{stockData.out_of_stock_items}</p>
-              <p className="text-xs text-gray-500">Zero stock items</p>
-            </div>
-            <div className="text-3xl">❌</div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Stock Value</p>
-              <p className="text-2xl font-bold text-green-600">TZS {stockData.total_stock_value.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Total inventory value</p>
-            </div>
-            <div className="text-3xl">💰</div>
-          </div>
-        </div>
-      </div>
+      
 
       {/* Monthly Transaction Statistics */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Monthly Activity for {monthNames[selectedMonth]} {selectedYear}
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <p className="text-2xl font-bold text-green-600">{monthlyStats.totalReceived}</p>
-            <p className="text-sm text-gray-600">Items Received</p>
-          </div>
-          <div className="text-center p-4 bg-red-50 rounded-lg">
-            <p className="text-2xl font-bold text-red-600">{monthlyStats.totalIssued}</p>
-            <p className="text-sm text-gray-600">Items Issued</p>
-          </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <p className={`text-2xl font-bold ${monthlyStats.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {monthlyStats.netChange >= 0 ? '+' : ''}{monthlyStats.netChange}
-            </p>
-            <p className="text-sm text-gray-600">Net Change</p>
-          </div>
-          <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <p className="text-2xl font-bold text-purple-600">{monthlyStats.transactionCount}</p>
-            <p className="text-sm text-gray-600">Total Transactions</p>
-          </div>
-        </div>
-      </div>
-
+      
       {/* Recent Transactions for Selected Month */}
       {stockTransactions.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -278,7 +254,7 @@ const MonthlyStockReport = ({ user }) => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
+                    Date & Time
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Item
@@ -295,10 +271,26 @@ const MonthlyStockReport = ({ user }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {stockTransactions.slice(0, 10).map((transaction, index) => (
+                {currentTransactions.map((transaction, index) => {
+                  const transactionDate = new Date(transaction.date);
+                  return (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(transaction.date).toLocaleDateString()}
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {transactionDate.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: '2-digit'
+                          })}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {transactionDate.toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {transaction.item_name || 'Unknown Item'}
@@ -318,17 +310,99 @@ const MonthlyStockReport = ({ user }) => {
                       {transaction.quantity}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {transaction.performed_by || 'System'}
+                      {transaction.performed_by_name || 'System'}
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>
-          {stockTransactions.length > 10 && (
-            <p className="text-sm text-gray-500 mt-2">
-              Showing 10 of {stockTransactions.length} transactions
-            </p>
+          
+          {/* Transactions Pagination */}
+          {totalTransactionPages > 1 && (
+            <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{indexOfFirstTransaction + 1}</span> to{' '}
+                    <span className="font-medium">{Math.min(indexOfLastTransaction, stockTransactions.length)}</span> of{' '}
+                    <span className="font-medium">{stockTransactions.length}</span> transactions
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm text-gray-700">Per page:</label>
+                    <select
+                      value={transactionsPerPage}
+                      onChange={(e) => {
+                        setTransactionsPerPage(parseInt(e.target.value));
+                        setTransactionsPage(1);
+                      }}
+                      className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleTransactionsPageChange(transactionsPage - 1)}
+                    disabled={transactionsPage === 1}
+                    className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  
+                  {/* Page Numbers */}
+                  <div className="flex space-x-1">
+                    {[...Array(totalTransactionPages)].map((_, index) => {
+                      const page = index + 1;
+                      const isCurrentPage = page === transactionsPage;
+                      
+                      // Show first page, last page, current page, and pages around current
+                      const showPage = page === 1 || 
+                                      page === totalTransactionPages || 
+                                      (page >= transactionsPage - 1 && page <= transactionsPage + 1);
+                      
+                      if (!showPage) {
+                        if (page === transactionsPage - 2 || page === transactionsPage + 2) {
+                          return (
+                            <span key={page} className="px-3 py-2 text-sm text-gray-500">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      }
+                      
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => handleTransactionsPageChange(page)}
+                          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                            isCurrentPage
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={() => handleTransactionsPageChange(transactionsPage + 1)}
+                    disabled={transactionsPage === totalTransactionPages}
+                    className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -369,8 +443,8 @@ const MonthlyStockReport = ({ user }) => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {inventoryItems.length > 0 ? (
-                inventoryItems.map((item, index) => (
+              {currentItems.length > 0 ? (
+                currentItems.map((item, index) => (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {item.name}
@@ -414,6 +488,93 @@ const MonthlyStockReport = ({ user }) => {
             </tbody>
           </table>
         </div>
+        
+        {/* Inventory Pagination */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(indexOfLastItem, inventoryItems.length)}</span> of{' '}
+                  <span className="font-medium">{inventoryItems.length}</span> items
+                </div>
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm text-gray-700">Per page:</label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(parseInt(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                
+                {/* Page Numbers */}
+                <div className="flex space-x-1">
+                  {[...Array(totalPages)].map((_, index) => {
+                    const page = index + 1;
+                    const isCurrentPage = page === currentPage;
+                    
+                    // Show first page, last page, current page, and pages around current
+                    const showPage = page === 1 || 
+                                    page === totalPages || 
+                                    (page >= currentPage - 1 && page <= currentPage + 1);
+                    
+                    if (!showPage) {
+                      if (page === currentPage - 2 || page === currentPage + 2) {
+                        return (
+                          <span key={page} className="px-3 py-2 text-sm text-gray-500">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    }
+                    
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          isCurrentPage
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
